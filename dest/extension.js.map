@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../src/extension.ts"],
+  "sourcesContent": ["console.log(\"Helooooooooooooo\");"],
+  "mappings": ";;;AAAA,QAAQ,IAAI,kBAAkB;",
+  "names": []
+}
