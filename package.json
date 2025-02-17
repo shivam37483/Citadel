@@ -1,0 +1,150 @@
+{
+    "name": "anthrax",
+    "displayName": "Anthrax",
+    "description": "Track your coding journey effortlessly with Anthrax",
+    "version": "4.1.20",
+    "publisher": "HeliosX",
+    "repository": {
+        "type": "GitHub",
+        "url": "https://github.com/shivam37483/Citadel"
+    },
+    "type": "commonjs",
+    "engines": {
+        "vscode": "^1.96.0"
+    },
+    "categories": [
+        "SCM Providers",
+        "Other",
+        "Programming Languages",
+        "Formatters",
+        "Education"
+    ],
+    "keywords": [
+        "git",
+        "tracking",
+        "productivity",
+        "automation",
+        "code-analytics",
+        "time-tracking",
+        "version-control",
+        "collaboration",
+        "github",
+        "documentation"
+    ],
+    "activationEvents": [
+        "onStartupFinished",
+        "onCommand:anthrax.login",
+        "onCommand:anthrax.startTracking",
+        "onCommand:anthrax.stopTracking",
+        "onCommand:anthrax.logout"
+    ],
+    "main": "./dest/extension.js",
+    "icon": "assets/image.jfif",
+    "contributes": {
+        "commands": [
+            {
+                "command": "anthrax.startTracking",
+                "title": "Anthrax: Start Tracking",
+                "enablement": "workspaceFolderCount != 0"
+            },
+            {
+                "command": "anthrax.stopTracking",
+                "title": "Anthrax: Stop Tracking",
+                "enablement": "workspaceFolderCount != 0"
+            },
+            {
+                "command": "anthrax.login",
+                "title": "Anthrax: Login to GitHub",
+                "enablement": "workspaceFolderCount != 0"
+            },
+            {
+                "command": "anthrax.logout",
+                "title": "Anthrax: Logout from GitHub"
+            },
+            {
+                "command": "anthrax.showGitGuide",
+                "title": "Anthrax: Show Git Installation Guide"
+            },
+            {
+                "command": "anthrax.openFolder",
+                "title": "Anthrax: Open Folder",
+                "enablement": "workspaceFolderCount == 0"
+            },
+            {
+                "command": "anthrax.test",
+                "title": "Anthrax: Test Extension Loading"
+            }
+        ],
+        "configuration": {
+            "type": "object",
+            "title": "DevTrack Configuration",
+            "properties": {
+                "devtrack.repoName": {
+                    "type": "string",
+                    "default": "code-tracking",
+                    "description": "Name of the GitHub repository to store tracking logs."
+                },
+                "devtrack.commitFrequency": {
+                    "type": "number",
+                    "default": 30,
+                    "description": "How often (in minutes) to commit your coding history."
+                },
+                "devtrack.confirmBeforeCommit": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Show a confirmation dialog before each automatic commit."
+                },
+                "devtrack.exclude": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": [],
+                    "description": "List of glob patterns to exclude from tracking."
+                }
+            }
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run package",
+        "compile": "npm run check-types && npm run lint && node esbuild.js",
+        "build": "npm run compile && node esbuild.js",
+        "watch": "npm-run-all -p watch:*",
+        "watch:esbuild": "node esbuild.js --watch",
+        "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+        "package": "npm run check-types && npm run lint && node esbuild.js --production",
+        "compile-tests": "tsc -p . --outDir out",
+        "watch-tests": "tsc -p . -w --outDir out",
+        "pretest": "npm run compile-tests && npm run compile && npm run lint",
+        "check-types": "tsc --noEmit",
+        "lint": "eslint src",
+        "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix"
+    },
+    "dependencies": {
+        "@octokit/rest": "^21.0.2",
+        "minimatch": "^10.0.1",
+        "simple-git": "^3.27.0"
+    },
+    "devDependencies": {
+        "@types/minimatch": "^5.1.2",
+        "@types/mocha": "^10.0.10",
+        "@types/node": "^22.10.10",
+        "@types/vscode": "^1.96.0",
+        "@typescript-eslint/eslint-plugin": "^8.18.0",
+        "@typescript-eslint/parser": "^8.18.0",
+        "@vscode/test-cli": "^0.0.10",
+        "@vscode/test-electron": "^2.4.1",
+        "@vscode/vsce": "^2.15.0",
+        "esbuild": "^0.24.2",
+        "eslint": "^9.19.0",
+        "eslint-config-prettier": "^9.1.0",
+        "eslint-plugin-prettier": "^5.2.1",
+        "npm-run-all": "^4.1.5",
+        "prettier": "^3.4.2",
+        "typescript": "^5.7.3",
+        "vscode": "^1.1.37"
+    },
+    "extensionDependencies": [
+        "vscode.git"
+    ]
+}
