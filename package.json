@@ -36,7 +36,8 @@
         "onCommand:anthrax.login",
         "onCommand:anthrax.startTracking",
         "onCommand:anthrax.stopTracking",
-        "onCommand:anthrax.logout"
+        "onCommand:anthrax.logout",
+        "onCommand:anthrax.test"
     ],
     "main": "./dest/extension.js",
     "icon": "assets/image.jfif",
