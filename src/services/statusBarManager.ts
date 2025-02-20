@@ -62,4 +62,39 @@ export class StatusBarManager {
     }
 
 
+   public updateTrackingStatus(isTracking: boolean) {
+    this.trackingStatusBar.text = isTracking
+    ? '$(clock) Anthrax: Tracking'
+    : '$(circle-slash) Anthrax: Stopped';
+
+    this.trackingStatusBar.tooltip = isTracking
+    ? 'Click to stop tracking'
+    : 'Click to start tracking';
+    
+    this.trackingStatusBar.command = isTracking
+    ? 'Anthrax.stopTracking'
+    : 'Anthrax.startTracking';
+    }
+
+
+    public updateAuthStatus(isConnected: boolean) {
+        this.authStatusBar.text = isConnected
+        ? '$(check) Anthrax: Connected'
+        : '$(mark-github) Anthrax: Stopped';
+    
+        this.authStatusBar.tooltip = isConnected
+        ? 'Connected to GitHub'
+        : 'Click to connect to GitHub';
+        
+        this.authStatusBar.command = isConnected
+        ? 'Anthrax.logout'
+        : 'Anthrax.login';
+        }
+    
+
+    public dispose(){
+        this.workspaceStatusBar.dispose();
+        this.trackingStatusBar.dispose();
+        this.authStatusBar.dispose();
+    }
 }
