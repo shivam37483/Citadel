@@ -1,3 +1,4 @@
+import { Buffer } from 'buffer';
 import * as vscode from 'vscode';
 import simpleGit, { SimpleGit, SimpleGitOptions } from 'simple-git';
 import * as path from 'path';
@@ -6,9 +7,9 @@ import { OutputChannel } from 'vscode';
 import { promisify } from 'util';
 import { exec } from 'child_process';
 import { execSync } from 'child_process';
+import process from 'process';
 const execAsync = promisify(exec);
 import * as fs from 'fs';
-import { error } from 'console';
 
 
 interface GitServiceEvents {
@@ -62,6 +63,11 @@ interface AnthraxStats {
     fileTypes: FileTypeStats[];
 }
 
+interface TimeStampFormat {
+    sortable: string,
+    readable: string,
+}
+
 export class GitService extends EventEmitter {
     private static readonly MAX_LISTENERS = 10;
     private outputChannel: OutputChannel;
@@ -86,7 +92,13 @@ export class GitService extends EventEmitter {
     private hasInitializedStats: boolean = false;
     private statsDir: string = '';
 
+    private activeProcesses = 0;
+    private static readonly PROCESS_LIMIT = 5;
 
+    private static MAX_RETRIES = 3;
+    private static RETRY_DELAY = 1000;
+
+    private processQueue: Promise<any> = Promise.resolve();
 
 
     private setupDefaultErrorHandler() {
@@ -455,7 +467,6 @@ export class GitService extends EventEmitter {
     }
 
 
-
     private async setupRemoteTracking(): Promise<void> {
         try {
             if (!this.git) {
@@ -517,8 +528,6 @@ export class GitService extends EventEmitter {
             );
         }
     }
-
-
 
     // Ensures that operations execute sequentially in a queue-like manner. Instead of running multiple Git operations at the same time. It chains them so that each operation executes only after the previous one completes.
     // operation() is asynchronous, meaning it must use await or return a Promise
@@ -606,9 +615,9 @@ node_modules/`;
                 filesModified: 0,
                 totalCommits: 0,
                 linesChanged: 0,
-                activityTimeline: [],
-                timeDistribution: [],
-                fileTypes: [],
+                activityTimeline: [] as ActivityTimelineEntry[],
+                timeDistribution: [] as TimeDistribution[],
+                fileTypes: [] as FileTypeStats[],
             };
 
             const statsDataPath = path.join(this.statsDir, 'data.json');
@@ -866,7 +875,6 @@ node_modules/`;
         }
     }
 
-
     // Helper method to ensure repository and remote are properly set up
     public async ensureRepoSetup(remoteUrl: string): Promise<void> {
         try {
@@ -977,7 +985,7 @@ node_modules/`;
     <head>
       <meta charset="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>DevTrack Statistics</title>
+      <title>Anthrax Statistics</title>
     </head>
     <body>
       <div id="root"></div>
@@ -1047,11 +1055,408 @@ node_modules/`;
     }
 
 
-    
+    private async getUpdatedStats(): Promise<AnthraxStats> {
+        const log = await this.git.log();
+        const now = new Date();
+
+        const stats: AnthraxStats = {
+            totalTime: 0,
+            filesModified: 0,
+            totalCommits: log.total,
+            linesChanged: 0,
+            activityTimeline: [] as ActivityTimelineEntry[],
+            timeDistribution: [] as TimeDistribution[],
+            fileTypes: [] as FileTypeStats[],
+        };
+
+
+        // Initialize timeDistribution array with all hours
+        for (let i = 0; i < 24; i++) {
+            stats.timeDistribution.push({ hour: i, changes: 0 });
+        }
+
+        const timelineMap = new Map<string, ActivityTimelineEntry>();
+
+        // Process Commits
+        for (const commit of log.all) {
+            const commitDate = new Date(commit.date);
+            const hourOfDay = commitDate.getHours();
+
+            // Update Time distribution
+            stats.timeDistribution[hourOfDay].changes++;
+
+            // Update Activity Timeline
+            const dateKey = commitDate.toISOString().split('T')[0];           // Extract YYYY-MM-DD
+            if (!timelineMap.has(dateKey)) {
+                timelineMap.set(
+                    dateKey,
+                    { date: dateKey, commits: 0, filesChanged: 0 }
+                );
+            }
+
+            const timelineEntry = timelineMap.get(dateKey)!;
+            timelineEntry.commits++;
+
+
+            // Estimates the Files changed from Commit Message
+            const filesChanged = commit.message
+                .split('\n')
+                .filter(
+                    (line) => line.trim().startsWith('-')
+                )
+                .length;
+
+            timelineEntry.filesChanged += filesChanged || 1;
+        }
+
+        // Convert timeline map to array and sort by date
+        stats.activityTimeline = Array.from(timelineMap.values())
+            .sort(
+                (a, b) => a.date.localeCompare(b.date)
+            );
+
+        // Calculate total modified files
+        stats.filesModified = stats.activityTimeline.reduce(
+            (total, entry) => total + entry.filesChanged,
+            0                                                                       // An initial value (0) which acts as the starting value for the total sum.
+        );
+
+
+        // Estimate total time (30 minutes per commit as a rough estimate)
+        stats.totalTime = Math.round((stats.totalCommits * 30) / 60); // Convert to hours
+
+        // Calculate file types from recent commits
+        const fileTypesMap = new Map<string, number>();
+        for (const commit of log.all.slice(0, 100)) {
+            // Look at last 100 commits
+            const files = commit.message.match(/\.(ts|js|tsx|py|rs|jsx|css|html|md)x?/g) || [];
+
+            for (const file of files) {
+                const ext = file.replace('.', '').toLowerCase();
+                fileTypesMap.set(ext, (fileTypesMap.get(ext) || 0) + 1);
+            }
+        }
+
+
+        // Convert file types to array with percentages
+        const totalFiles = Array.from(fileTypesMap.values()).reduce(
+            (a, b) => a + b,
+            0
+        );
+
+        stats.fileTypes = Array.from(fileTypesMap.entries()).map(
+            ([name, count]) => ({
+                name: name.toUpperCase(),
+                count,
+                percentage: Math.round((count / totalFiles) * 100),
+            })
+        );
+
+
+        return stats;
+    }
+
+
+    private async verifyCommitTracking(message: string): Promise<void> {
+        try {
+            // Check if the commit was actually saved
+            const log = await this.git.log({ maxCount: 1 });
+
+            if (log.latest?.message !== message) {
+                this.outputChannel.appendLine('Anthrax: Warning - Last commit message does not match expected message');
+                this.outputChannel.appendLine(`Expected: ${message}`);
+                this.outputChannel.appendLine(`Actual: ${log.latest?.message || 'No commit found'}`);
+            } else {
+                this.outputChannel.appendLine('Anthrax: Successfully verified commit was tracked');
+            }
+        } catch (error) {
+            this.outputChannel.appendLine(`Anthrax: Error verifying commit - ${error}`);
+        }
+    }
+
+    // This function formats a given date (Date object) into two different timestamp formats: Sortable timestamp (sortable) – Used for filenames or logging.
+    // Readable timestamp (readable) – Used for commit messages or user-friendly displays.
+    private formatTimestamp(date: Date): TimeStampFormat {
+        const pad = (num: number): string => num.toString().padStart(2, '0');
+
+        // Format time in 12-hour format with AM/PM
+        const formatTime = (date: Date): string => {
+            let hours = date.getHours();
+            const minutes = date.getMinutes();
+            const seconds = date.getSeconds();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+
+            // Convert to 12-hour format
+            hours = hours % 12;
+            hours = hours ? hours : 12; // the hour '0' should be '12'
+
+            return `${pad(hours)}${pad(minutes)}-${pad(seconds)}-${ampm}`;
+        };
+
+        // Get local date components
+        const year = date.getFullYear();
+        const month = pad(date.getMonth() + 1);
+        const day = pad(date.getDate());
+
+        // Get timezone
+        const timezone = date
+            .toLocaleTimeString('en-us', { timeZoneName: 'short' })
+            .split(' ')[2];
+
+        // For file name (now includes AM/PM)
+        const sortableTimestamp = `${year}-${month}-${day}-${formatTime(date)}`;
+
+        // For commit message (human readable with timezone)
+        const readableTimestamp = `${date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+        })} at ${date.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true,
+        })} ${timezone}`;
+
+        return {
+            sortable: sortableTimestamp,
+            readable: readableTimestamp,
+        };
+    }
+
+    private async withProcessLimit<T>(operation: () => Promise<T>): Promise<T> {
+        while (this.activeProcesses >= GitService.PROCESS_LIMIT) {
+            await new Promise((resolve) => globalThis.setTimeout(resolve, 100));
+        }
+
+        this.activeProcesses++;
+        try {
+            return await operation();
+        } finally {
+            this.activeProcesses--;
+        }
+    }
+
+    private async withRetry<T>(operation: () => Promise<T>, retries = GitService.MAX_RETRIES): Promise<T> {
+        for (let attempt = 1; attempt <= retries; attempt++) {
+            try {
+                return await this.withProcessLimit(operation);
+            } catch (error: any) {
+                if (error.message?.includes('EAGAIN') && attempt < retries) {
+                    this.outputChannel.appendLine(`Anthrax: Git process limit reached, retrying (${attempt}/${retries})...`);
+                    await new Promise((resolve) =>
+                        globalThis.setTimeout(resolve, GitService.RETRY_DELAY * attempt)
+                    );
+                    continue;
+                }
+                throw error;
+            }
+        }
+        throw new Error('Maximum retry attempts reached');
+    }
+
+    public async commitAndPush(message: string): Promise<void> {
+        return this.enqueueOperation(async () => {
+            try {
+                if (!this.git) {
+                    throw new Error('Git not initialized');
+                }
+
+                // Create a changes directory if it doesn't exist
+                const changesDir = path.join(this.currentTrackingDir, 'changes');
+                if (!fs.existsSync(changesDir)) {
+                    await fs.promises.mkdir(changesDir, { recursive: true });
+                }
+
+                // Extract file content from the commit message
+                const codeBlockRegex = /```\n(.*?):\n([\s\S]*?)```/g;
+                let match;
+                const timestamp = this.formatTimestamp(new Date());
+                const filesToAdd: string[] = [];
+
+                while ((match = codeBlockRegex.exec(message)) !== null) {
+                    const [_, filename, code] = match;
+                    const cleanFilename = filename.trim();
+                    const extension = path.extname(cleanFilename);
+                    const baseNameWithoutExt = path.basename(cleanFilename, extension);
+
+                    // Create filename with timestamp: 2025-02-15-1200-00-AM-original_name.ts
+                    const timestampedFilename = `${timestamp.sortable}-${baseNameWithoutExt}${extension}`;
+                    const filePath = path.join(changesDir, timestampedFilename);
+
+                    // Write the actual code file
+                    await fs.promises.writeFile(filePath, code.trim());
+                    filesToAdd.push(filePath);
+                }
+
+                // Update the commit message to include local timezone
+                const updatedMessage = message.replace(
+                    /Anthrax Update - [0-9T:.-Z]+/,
+                    `Anthrax Update - ${timestamp.readable}`
+                );
+
+                this.emitSafe('operation:start', 'commitAndPush');
+
+                await this.withRetry(async () => {
+                    const branches = await this.git.branch();
+                    const currentBranch = branches.current;
+
+                    // Stage only the new code files
+                    for (const file of filesToAdd) {
+                        await this.git.add(file);
+                    }
+
+                    // Commit with the enhanced message
+                    await this.git.commit(updatedMessage);
+                    this.emitSafe('commit', updatedMessage);
+
+                    try {
+                        await this.git.push([
+                            'origin',
+                            currentBranch,
+                            '--force-with-lease',
+                        ]);
+                        this.emitSafe('push', currentBranch);
+                    } catch (pushError: any) {
+                        if (pushError.message.includes('no upstream branch')) {
+                            await this.setupRemoteTracking();
+                            await this.git.push([
+                                'origin',
+                                currentBranch,
+                                '--force-with-lease',
+                            ]);
+                        } else {
+                            throw pushError;
+                        }
+                    }
+                });
+
+                this.emitSafe('operation:end', 'commitAndPush');
+                const stats = await this.getUpdatedStats();
+                await this.updateStatsData(stats);
+            } catch (error: any) {
+                this.outputChannel.appendLine(
+                    `Anthrax: Git commit failed - ${error.message}`
+                );
+                this.emitSafe('error', error);
+                throw error;
+            }
+        });
+    }
+
+    public async recordChanges(message: string, changedFiles: string[]): Promise<void> {
+        if (!this.currentTrackingDir) {
+            await this.initializeTracking();
+        }
+
+        return this.enqueueOperation(async () => {
+            try {
+                // Create a change record
+                const change = {
+                    timeStamp: new Date().toISOString(),
+                    files: changedFiles,
+                    summary: message,
+                };
+
+                // Update metadata with new change
+                const metadataPath = path.join(
+                    this.currentTrackingDir,
+                    'tracking.json'
+                );
+                const metadata: TrackingMetadata = JSON.parse(
+                    await fs.promises.readFile(metadataPath, 'utf8')
+                );
+
+                metadata.changes = metadata.changes || [];
+                metadata.changes.push(change);
+                metadata.lastSync = change.timeStamp;
+
+                // Save updated metadata
+                await fs.promises.writeFile(
+                    metadataPath,
+                    JSON.stringify(metadata, null, 2)
+                );
+
+                // Commit change to tracking repository
+                if (this.git) {
+                    await this.git.add('.');
+                    await this.git.commit(message);
+                }
+
+                this.outputChannel.appendLine(
+                    'Anthrax: Changes recorded successfully'
+                );
+            } catch (error: any) {
+                this.outputChannel.appendLine(
+                    `Anthrax: Failed to record changes - ${error.message}`
+                );
+                throw error;
+            }
+        });
+    }
+
+    public async commitChanges(message: string, changes: any[]): Promise<void> {
+        return this.enqueueOperation(async () => {
+            try {
+                if (!this.git) {
+                    throw new Error('Tracking repository not initialized');
+                }
+
+                // Create change snapshot
+                const snapshotPath = path.join(this.currentTrackingDir, 'changes');
+                if (!fs.existsSync(snapshotPath)) {
+                    await fs.promises.mkdir(snapshotPath, { recursive: true });
+                }
+
+                // Save change data
+                const timeStamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const snapshotFile = path.join(
+                    snapshotPath,
+                    `changes-${timeStamp}.json`
+                );
+                await fs.promises.writeFile(
+                    snapshotFile,
+                    JSON.stringify({ message, changes }, null, 2)
+                );
+
+                // Update tracking metadata
+                await this.updateTrackingMetadata({
+                    lastCommit: {
+                        message,
+                        timeStamp,
+                        changeCount: changes.length,
+                    },
+                });
+
+                // Commit to tracking repository
+                await this.git.add('.');
+                await this.git.commit(message);
+
+                this.outputChannel.appendLine(
+                    'Anthrax: Changes committed to tracking repository'
+                );
+            } catch (error: any) {
+                this.outputChannel.appendLine(
+                    `Anthrax: Commit failed - ${error.message}`
+                );
+                throw error;
+            }
+        });
+    }
 
     // Helper method to check if we have any listeners for an event
     public hasListeners(event: keyof GitServiceEvents): boolean {
         return this.listenerCount(event) > 0;
     }
 
+    public cleanUp(): void {
+        this.activeProcesses = 0;
+        this.processQueue = Promise.resolve();
+    }
+
+    public dispose(): void {
+        this.removeAllListeners();
+        this.operationQueue = Promise.resolve();
+        this.cleanUp();
+    }
 }
