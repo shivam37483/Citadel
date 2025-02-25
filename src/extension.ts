@@ -3,11 +3,15 @@ import { StatusBarManager } from './services/statusBarManager';
 import { GitHubService } from "./services/githubService";
 import { execSync } from 'child_process';
 import process from 'process';
-
+import { error } from 'console';
+import * as path from 'path';
+import * as fs from 'fs';
+import { GitService } from "./services/gitService";
 
 interface AnthraxServices {
-    outputchannel: vscode.OutputChannel,
+    outputChannel: vscode.OutputChannel,
     githubService: GitHubService,
+    gitService: GitService,
 }
 
 class GitInstallationHandler {
@@ -321,16 +325,52 @@ DevTrack will:
 }
 
 
-async function recovery(services: AnthraxServices): Promise<void> {
-    services.githubService = new GitHubService(services.outputchannel);
+async function recoveryFromGitIssues(services: AnthraxServices): Promise<void> {
+    try {
+        // Clear existing Git state
 
-    const session = await vscode.authentication.getSession(
-        'github',
-        ['repo', 'read:user'],
-        {
-            createIfNone: true,
-            clearSessionPreference: true,
+        // Retrieves the root directory of the currently open VSCode workspace
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+        if (!workspaceRoot) {
+            throw new Error('No workspace folder found');
         }
+
+        // Constructs the .git folder path in the workspace
+        const gitPath = path.join(workspaceRoot, '.git');
+        // If the .git directory exists, it deletes it recursively to remove all Git metadata. This effectively "resets" the repository, ensuring any corrupt or misconfigured state is cleared.
+        if (fs.existsSync(gitPath)) {
+            await vscode.workspace.fs.delete(vscode.Uri.file(gitPath), {
+                recursive: true,
+            });
+        }
+
+
+        // Clear the existing session by requesting with createIfNone: false
+        try {
+            await vscode.authentication.getSession('github', ['repo', 'read:user'], {
+                // ensures it does not create a new session
+                createIfNone: false,
+                // clears any stored authentication preferences
+                clearSessionPreference: true,
+            });
+        } catch (error) {
+            // Ignore errors here, just trying to clear the session
+        }
+
+
+
+    // Reinitialize services
+    services.githubService = new GitHubService(services.outputChannel);
+    services.gitService = new GitService(services.outputChannel);
+
+    // Get fresh GitHub token
+    const session = await vscode.authentication.getSession(
+      'github',
+      ['repo', 'read:user'],
+      {
+        createIfNone: true,
+        clearSessionPreference: true,
+      }
     );
 
     if (!session) {
@@ -339,47 +379,50 @@ async function recovery(services: AnthraxServices): Promise<void> {
 
     services.githubService.setToken(session.accessToken);
 
+    // Setup repository from scratch
     const username = await services.githubService.getUsername();
     if (!username) {
       throw new Error('Failed to get GitHub username');
     }
 
-    const config = vscode.workspace.getConfiguration('anthrax');
-    const reponame = 'Citadel';
-    const remoteUrl = `https://github.com/${username}/${reponame}`;
+    const config = vscode.workspace.getConfiguration('devtrack');
+    const repoName = config.get<string>('repoName') || 'code-tracking';
+    const remoteUrl = `https://github.com/${username}/${repoName}.git`;
 
+    await services.gitService.initializeRepo(remoteUrl);
 
-
-    vscode.window.showInformationMessage(`username: ${username}, reponame: ${reponame}, URL: ${remoteUrl}`);
-    services.outputchannel.appendLine(`username: ${username}, reponame: ${reponame}, URL: ${remoteUrl}`);
+  } catch (error: any) {
+    throw new Error(`Recovery failed: ${error.message}`);
+  }
 }
+
 
 export async function activate(context: vscode.ExtensionContext) {
     // console.log("Anthrax extension activated!"); // Debugging line
 
     let statusBarManager = new StatusBarManager();
 
-        let dummy = vscode.commands.registerCommand('anthrax.test', () => {
+    let dummy = vscode.commands.registerCommand('anthrax.test', () => {
         vscode.window.showInformationMessage("Beginnign of a whole new goddamn world");
         // console.log("Anthrax extension Displayed something!"); // Debugging line
     });
-    
+
     context.subscriptions.push(dummy);
-    
-    
-    
-    const outputChannel = vscode.window.createOutputChannel('Anthrax');
-    const githubService = new GitHubService(outputChannel);
-    const services: AnthraxServices = { outputchannel: outputChannel, githubService: githubService };
 
-    let recoveryCommand = vscode.commands.registerCommand('anthrax.openFolder', () => {
-        recovery(services).catch(err => {
-            vscode.window.showErrorMessage(`Recovery failed: ${err.message}`);
-        });
-    });
-    context.subscriptions.push(recoveryCommand);
 
-    
+
+    // const outputChannel = vscode.window.createOutputChannel('Anthrax');
+    // const githubService = new GitHubService(outputChannel);
+    // const services: AnthraxServices = { outputChannel: outputChannel, githubService: githubService };
+
+    // let recoveryCommand = vscode.commands.registerCommand('anthrax.openFolder', () => {
+    //     recovery(services).catch(err => {
+    //         vscode.window.showErrorMessage(`Recovery failed: ${err.message}`);
+    //     });
+    // });
+    // context.subscriptions.push(recoveryCommand);
+
+
 }
 
 
