@@ -8,11 +8,22 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { GitService } from "./services/gitService";
 import { platform, homedir } from 'os';
+import { Stream } from 'stream';
+import { serialize } from 'v8';
 
 interface AnthraxServices {
     outputChannel: vscode.OutputChannel,
     githubService: GitHubService,
     gitService: GitService,
+    trackingStatusBar: vscode.StatusBarItem;
+    authStatusBar: vscode.StatusBarItem;
+    extensionContext: vscode.ExtensionContext;
+}
+
+interface PersistedAuthSate {
+    username?: string,
+    reponame?: string,
+    lastWorkspace?: string,
 }
 
 class GitInstallationHandler {
@@ -27,7 +38,7 @@ class GitInstallationHandler {
         try {
             const gitVersion = execSync('git --version', { encoding: 'utf8' });
 
-            outputChannel.appendLine(`DevTrack: Git found - ${gitVersion.trim()}`);
+            outputChannel.appendLine(`anthrax: Git found - ${gitVersion.trim()}`);
 
             return true;
         } catch (error) {
@@ -212,6 +223,287 @@ function showWelcomeMessage(context: vscode.ExtensionContext, services: AnthraxS
 }
 
 
+function createStatusBarItem(type: 'tracking' | 'auth'): vscode.StatusBarItem {
+    const item = vscode.window.createStatusBarItem(
+        vscode.StatusBarAlignment.Right,
+        type === 'tracking' ? 100 : 101
+    );
+
+    if (type === 'tracking') {
+        item.text = '$(circle-slash) Anthrax: Stopped';
+        item.tooltip = 'Click to start/stop tracking';
+        item.command = 'anthrax.startTracking';
+    } else {
+        item.text = '$(mark-github) Anthrax: Not Connected';
+        item.tooltip = 'Click to connect to GitHub';
+        item.command = 'anthrax.login';
+    }
+
+    return item;
+}
+
+// UI Updates
+function updateStatusBar(services: AnthraxServices, type: 'tracking' | 'auth', active: boolean): void {
+    if (type === 'tracking') {
+        services.trackingStatusBar.text = active
+            ? '$(clock) anthrax: Tracking'
+            : '$(circle-slash) anthrax: Stopped';
+        services.trackingStatusBar.tooltip = active
+            ? 'Click to stop tracking'
+            : 'Click to start tracking';
+        services.trackingStatusBar.command = active
+            ? 'anthrax.stopTracking'
+            : 'anthrax.startTracking';
+    } else {
+        services.authStatusBar.text = active
+            ? '$(check) anthrax: Connected'
+            : '$(mark-github) anthrax: Not Connected';
+        services.authStatusBar.tooltip = active
+            ? 'Click to logout'
+            : 'Click to connect to GitHub';
+        services.authStatusBar.command = active
+            ? 'anthrax.logout'
+            : 'anthrax.login';
+    }
+}
+
+
+async function restoreAuthState(context: vscode.ExtensionContext, services: AnthraxServices): Promise<boolean> {
+    try {
+        const persistedState = context.globalState.get<PersistedAuthSate>('anthraxAuthState');
+        if (!persistedState?.username) {
+            return false
+        }
+
+        const session = await vscode.authentication.getSession(
+            'github',
+            ['repo', 'read:user'],
+            {
+                createIfNone: false,
+                silent: true,
+            }
+        );
+
+
+        if (session) {
+            services.githubService.setToken(session.accessToken);
+            const username = await services.githubService.getUsername();
+
+            if (username == persistedState.username) {
+                const repoName = persistedState.reponame || 'code-tracking';
+                const remoteUrl = `https://github.com/${username}/${repoName}.git`;
+
+                await services.gitService.ensureRepoSetup(remoteUrl);
+                // await intializeTracker(services);
+
+                updateStatusBar(services, 'auth', true);
+                // updateStatusBar(services, 'tracking', true);
+
+                services.outputChannel.appendLine('anthrax: Successfully restored authentication state');
+
+                return true;
+            }
+        }
+
+    } catch (error) {
+        services.outputChannel.appendLine(`anthrax: Error restoring auth state - ${error}`);
+    }
+    return false;
+}
+
+async function intializeServices(context: vscode.ExtensionContext, channel: vscode.OutputChannel): Promise<AnthraxServices | null> {
+    try {
+        const homeDir = homedir();
+        if (!homeDir) {
+            throw new Error('Unable to determine Home Dir');
+        }
+
+        // Create Tracking Dir structure
+        const trackingBase = path.join(homeDir, '.anthrax', 'tracking');
+        await fs.promises.mkdir(trackingBase, { recursive: true });
+
+        // Create workspace specific Tracking Dir
+        const workspaceId = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+            ? Buffer.from(vscode.workspace.workspaceFolders[0].uri.fsPath)
+                .toString('base64')
+                .replace(/[/+=]/g, '_')
+            : 'default';
+        const trackingDir = path.join(trackingBase, workspaceId);
+        await fs.promises.mkdir(trackingDir, { recursive: true });
+
+
+        const services: AnthraxServices = {
+            extensionContext: context,
+            outputChannel: channel,
+            githubService: new GitHubService(channel),
+            gitService: new GitService(channel),
+            trackingStatusBar: createStatusBarItem('tracking'),
+            authStatusBar: createStatusBarItem('auth'),
+        };
+
+
+        // Add Status-bar to subscription to show them
+        context.subscriptions.push(
+            services.trackingStatusBar,
+            services.authStatusBar
+        );
+        services.trackingStatusBar.show();
+        services.authStatusBar.show();
+
+
+        await restoreAuthState(context, services);
+
+        return services;
+
+    } catch (error) {
+        channel.appendLine(`Anthrax: Service initialization error - ${error}`);
+        return null;
+    }
+}
+
+async function registerCommands(context: vscode.ExtensionContext, services: AnthraxServices): Promise<void> {
+    const commands = [
+        // {
+        //     command: 'anthrax.startTracking',
+        //     callback: () => handleStartTracking(services),
+        // },
+        // {
+        //     command: 'anthrax.stopTracking',
+        //     callback: () => handleStopTracking(services),
+        // },
+        {
+            command: 'anthrax.login',
+            callback: () => handleLogin(services),
+        },
+        // {
+        //     command: 'anthrax.logout',
+        //     callback: () => handleLogout(services),
+        // },
+        // Add missing commands
+        {
+            command: 'anthrax.showGitGuide',
+            callback: () => GitInstallationHandler.showInstallationGuide(),
+        },
+        {
+            command: 'anthrax.openFolder',
+            callback: () => vscode.commands.executeCommand('vscode.openFolder'),
+        },
+        // Note: We'll register generateWebsite separately in registerWebsiteCommands
+    ];
+
+    commands.forEach(
+        ({ command, callback }) => {
+            context.subscriptions.push(vscode.commands.registerCommand(command, callback));
+        });
+}
+
+// Error Handling
+function handleError(services: AnthraxServices, context: string, error: Error): void {
+    const message = error.message || 'An unknown error occurred';
+
+    services.outputChannel.appendLine(`ANTHRAX: ${context} - ${message}`);
+
+    vscode.window.showErrorMessage(`ANTHRAX: ${message}`);
+}
+
+async function handleLogin(services: AnthraxServices): Promise<void> {
+    try {
+        services.outputChannel.appendLine('Anthrax: Starting login process...');
+        const session = await vscode.authentication.getSession(
+            'github',
+            ['repo', 'read:user'],
+            { createIfNone: true }
+        );
+
+        if (session) {
+            services.githubService.setToken(session.accessToken);
+            await initializeAnthrax(services);
+        } else {
+            vscode.window.showInformationMessage('Anthrax: GitHub connection was cancelled.');
+        }
+
+    } catch (error: any) {
+        handleError(services, 'Login-Failed', error);
+    }
+}
+
+// Anthrax Intialization
+async function initializeAnthrax(services: AnthraxServices): Promise<void> {
+    try {
+        services.outputChannel.appendLine('Anthrax: Starting initialization...');
+
+        // Verify Git installation
+        if (!(await GitInstallationHandler.checkGitIntstallation(services.outputChannel))) {
+            throw new Error('Git must be installed before ANTHRAX can be initialized.');
+        }
+
+        // Get Github Session
+        const session = vscode.authentication.getSession(
+            'github',
+            ['repo', 'read:user'],
+            { createIfNone: true },
+        );
+
+        if (!session) {
+            throw new Error('GitHub authentication is required to use Anthrax.');
+        }
+
+
+        // Initialize Github Services
+        services.githubService.setToken((await session).accessToken);
+        const username = await services.githubService.getUsername();
+
+        if (!username) {
+            throw new Error('Unable to retrieve GitHub username.');
+        }
+
+
+        // Setup Repo
+        const config = vscode.workspace.getConfiguration('anthrax');
+        const repoName = config.get<string>('repoName') || 'code-tracking';
+        const remoteUrl = `https://github.com/${username}/${repoName}.git`;
+
+        // Create repo if it doesnt exist\
+        const repoExists = await services.githubService.repoExists(repoName);
+        if (!repoExists) {
+            const createdRepoUrl = await services.githubService.createRepo(repoName);
+            if (!createdRepoUrl) {
+                throw new Error('Failed to create GitHub repository.');
+            }
+        }
+
+
+        // Intialize Git repo
+        await services.gitService.ensureRepoSetup(remoteUrl);
+
+        // Initialize tracker
+        // await initializeTracker(services);
+
+
+        // Update UI and Persist State
+        updateStatusBar(services, 'auth', true);
+        // updateStatusBar(services, 'tracking' , true);
+
+
+        await services.extensionContext.globalState.update('anthraxAuthState',
+            {
+                username,
+                repoName,
+                lastWorkspace: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+            }
+        );
+
+        services.outputChannel.appendLine('Anthrax: Initialization completed successfully');
+
+        vscode.window.showInformationMessage('Anthrax has been set up successfully and tracking has started.');
+
+    } catch (error: any) {
+        handleError(services, 'Intialization Failed', error);
+        throw error;
+    }
+}
+
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     // Creates an Output Channel First to be used throughout
     const channel = vscode.window.createOutputChannel('Anthrax');
@@ -228,10 +520,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         context.subscriptions.push(testCommand);
 
         // Intialize services with the created channel
-        // const services = await intializeServices(context, channel);
-        // if (!services) {
-        //     return;
-        // }
+        const services = await intializeServices(context, channel);
+        if (!services) {
+            return;
+        }
+
+        // Register commands and setup handlers
+        await registerCommands(context, services);
 
     } catch (error) {
         channel.appendLine(`Anthrax: Activation error - ${error}`);
@@ -241,8 +536,3 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 
 export function deactivate() { }
-
-
-// async function registerCommands(context: vscode.ExtensionContext, services: AnthraxServices) {
-
-// }

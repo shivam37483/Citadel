@@ -440,29 +440,46 @@ export class GitService extends EventEmitter {
 
 
     private async createTrackingDirectory(): Promise<void> {
-        if (!this.currentTrackingDir) {
-            const homeDir = process.env.HOME || process.env.USERPROFILE;
-            if (!homeDir) {
-                throw new Error('Unable to determine home directory for Anthrax');
+        try {
+            if (!this.currentTrackingDir) {
+                const homeDir = process.env.HOME || process.env.USERPROFILE;
+                if (!homeDir) {
+                    throw new Error('Unable to determine home directory for Anthrax');
+                }
+
+                // Create a base tracking directory even without workspace
+                this.currentTrackingDir = path.join(
+                    homeDir,
+                    '.anthrax',
+                    'tracking',
+                    'default'
+                );
+
+                // If workspace is available, use workspace-specific directory
+                const workspaceFolders = vscode.workspace.workspaceFolders;
+                if (workspaceFolders && workspaceFolders.length > 0) {
+                    const workspaceId = Buffer.from(workspaceFolders[0].uri.fsPath)
+                        .toString('base64')
+                        .replace(/[/+=]/g, '_');
+                    this.currentTrackingDir = path.join(
+                        homeDir,
+                        '.anthrax',
+                        'tracking',
+                        workspaceId
+                    );
+                }
+
+                if (!fs.existsSync(this.currentTrackingDir)) {
+                    await fs.promises.mkdir(this.currentTrackingDir, { recursive: true });
+                }
+
+                this.outputChannel.appendLine(`anthrax: Created tracking directory at ${this.currentTrackingDir}`);
             }
 
-            // Create a unique tracking directory under .Anthrax in home directory
-            const workspaceId = Buffer.from(
-                vscode.workspace.workspaceFolders![0].uri.fsPath
-            )
-                .toString('base64')
-                .replace(/[/+=]/g, '_');
-
-            this.currentTrackingDir = path.join(
-                homeDir,
-                '.Anthrax',
-                'tracking',
-                workspaceId
-            );
-
-            if (!fs.existsSync(this.currentTrackingDir)) {
-                await fs.promises.mkdir(this.currentTrackingDir, { recursive: true });
-            }
+        } catch (error: any) {
+            this.outputChannel.appendLine(`anthrax: Error creating tracking directory - ${error.message}`);
+            
+            throw error;
         }
     }
 
@@ -868,9 +885,8 @@ node_modules/`;
                 this.outputChannel.appendLine("Anthrax: Git Initialized successfully!");
             }
         } catch (error: any) {
-            this.outputChannel.appendLine(
-                `Anthrax: Failed to initialize Git - ${error.message}`
-            );
+            this.outputChannel.appendLine(`Anthrax: Failed to initialize Git - ${error.message}`);
+
             throw error;
         }
     }

@@ -55,8 +55,7 @@
             },
             {
                 "command": "anthrax.login",
-                "title": "Anthrax: Login to GitHub",
-                "enablement": "workspaceFolderCount != 0"
+                "title": "Anthrax: Login to GitHub"
             },
             {
                 "command": "anthrax.logout",
