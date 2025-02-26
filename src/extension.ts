@@ -375,10 +375,10 @@ async function registerCommands(context: vscode.ExtensionContext, services: Anth
             command: 'anthrax.login',
             callback: () => handleLogin(services),
         },
-        // {
-        //     command: 'anthrax.logout',
-        //     callback: () => handleLogout(services),
-        // },
+        {
+            command: 'anthrax.logout',
+            callback: () => handleLogout(services),
+        },
         // Add missing commands
         {
             command: 'anthrax.showGitGuide',
@@ -395,6 +395,54 @@ async function registerCommands(context: vscode.ExtensionContext, services: Anth
         ({ command, callback }) => {
             context.subscriptions.push(vscode.commands.registerCommand(command, callback));
         });
+}
+
+
+async function handleLogout(services: AnthraxServices): Promise<void> {
+    const confirm = await vscode.window.showWarningMessage(
+        'Are you sure you want to logout from anthrax?',
+        { modal: true },
+        'Yes',
+        'No'
+    );
+
+    if (confirm !== 'Yes') {
+        return;
+    }
+
+    try {
+        cleanUp(services);
+        await services.extensionContext.globalState.update(
+            'anthraxAuthState',
+            undefined
+        );
+        vscode.window.showInformationMessage('anthrax: Successfully logged out.');
+
+        const loginChoice = await vscode.window.showInformationMessage(
+            'Would you like to log in with a different account?',
+            'Yes',
+            'No'
+        );
+
+        if (loginChoice === 'Yes') {
+            await vscode.commands.executeCommand('anthrax.login');
+        }
+    } catch (error: any) {
+        handleError(services, 'Logout failed', error);
+    }
+}
+
+function cleanUp(services: AnthraxServices): void {
+    try {
+        services.githubService.setToken('');
+
+        updateStatusBar(services, 'auth', false);
+
+        services.outputChannel.appendLine('Anthrax: Cleaned up services');
+
+    } catch (error: any) {
+        handleError(services, 'Cleanup - Error', error);
+    }
 }
 
 // Error Handling
