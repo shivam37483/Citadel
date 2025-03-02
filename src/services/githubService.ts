@@ -4,29 +4,28 @@ import { Octokit } from "@octokit/rest";
 
 
 export class GitHubService {
-    
+
     private octokit!: Octokit;            // Without !, TypeScript would throw an error as the value is not intialized in constructor. The ! operator is a TypeScript non-null assertion, ensuring octokit is assigned before use.
-    private token: String = '';
+    public token: String = '';
     private outputChannel: OutputChannel;
-    
+
+    public reponame: string = '';
+
     constructor(outputChannel: OutputChannel) {
         this.outputChannel = outputChannel;
-
-        // Token will be set via setToken method using octokit
     }
 
 
-     /**
-   * Sets the GitHub token and initializes Octokit.
-   * @param token - The Gi  tHub access token obtained via OAuth.
-   */
+    /**
+  * Sets the GitHub token and initializes Octokit.
+  * @param token - The GitHub access token obtained via OAuth.
+  */
     setToken(token: String) {
         this.token = token;
         this.octokit = new Octokit({
             auth: this.token
         });
     }
-
 
     /**
    * Creates a new repository for the authenticated user.
@@ -35,6 +34,7 @@ export class GitHubService {
    * @returns The clone URL of the created repository or null if creation failed.
    */
     async createRepo(repoName: string, description: string = 'Anthrax Repository'): Promise<string | null> {
+        this.reponame = repoName;
         try {
             const response = await this.octokit.repos.createForAuthenticatedUser({
                 name: repoName,
@@ -42,7 +42,7 @@ export class GitHubService {
                 private: false                         // Whether the repo is pvt
             });
 
-            return response.data.clone_url;            
+            return response.data.clone_url;
         } catch (error: any) {
             this.outputChannel.appendLine(`Error creating repository: ${error.message}`);
         };
@@ -92,7 +92,7 @@ export class GitHubService {
 
             return true
         } catch (error: any) {
-            if (error.status == 404){
+            if (error.status == 404) {
                 return false;
             }
 

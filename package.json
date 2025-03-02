@@ -73,28 +73,37 @@
             {
                 "command": "anthrax.test",
                 "title": "Anthrax: Test Extension Loading"
+            },
+            {
+                "command": "anthrax.generateWebsite",
+                "title": "Anthrax: Generate Statistics Website",
+                "enablement": "workspaceFolderCount != 0"
+            },
+            {
+                "command": "anthrax.clearState",
+                "title": "Anthrax: Clear global state"
             }
         ],
         "configuration": {
             "type": "object",
-            "title": "DevTrack Configuration",
+            "title": "Anthrax Configuration",
             "properties": {
-                "devtrack.repoName": {
+                "anthrax.repoName": {
                     "type": "string",
                     "default": "code-tracking",
                     "description": "Name of the GitHub repository to store tracking logs."
                 },
-                "devtrack.commitFrequency": {
+                "anthrax.commitFrequency": {
                     "type": "number",
                     "default": 30,
                     "description": "How often (in minutes) to commit your coding history."
                 },
-                "devtrack.confirmBeforeCommit": {
+                "anthrax.confirmBeforeCommit": {
                     "type": "boolean",
                     "default": true,
                     "description": "Show a confirmation dialog before each automatic commit."
                 },
-                "devtrack.exclude": {
+                "anthrax.exclude": {
                     "type": "array",
                     "items": {
                         "type": "string"

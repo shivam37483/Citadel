@@ -10,6 +10,7 @@ import { execSync } from 'child_process';
 import process from 'process';
 const execAsync = promisify(exec);
 import * as fs from 'fs';
+import { GitHubService } from './githubService';
 
 
 interface GitServiceEvents {
@@ -100,6 +101,8 @@ export class GitService extends EventEmitter {
 
     private processQueue: Promise<any> = Promise.resolve();
 
+    private githubServ;
+
 
     private setupDefaultErrorHandler() {
         if (this.listenerCount('error') == 0) {             // Returns the number of listeners listening for the event named eventName
@@ -125,6 +128,9 @@ export class GitService extends EventEmitter {
         if (!fs.existsSync(this.baseTrackingDir)) {
             fs.mkdirSync(this.baseTrackingDir, { recursive: true });
         }
+
+        this.githubServ = new GitHubService(outputChannel);
+
     }
 
     // Type - safe Event Emmiter methods. It extends keyof GitServiceEvents, meaning E must be a key of the GitServiceEvents type. This ensures that event can only be a valid event name defined in GitServiceEvents.
@@ -253,7 +259,7 @@ export class GitService extends EventEmitter {
             const version = match[1];
             const [major, minor] = version.split('.').map(Number);
 
-            if (major < 2 || (major === 2 && minor < 140)) {
+            if (major < 2 || (major === 2 && minor < 30)) {
                 throw new Error(
                     `Git version ${version} is not supported. Please upgrade to 2.30.0 or later.`
                 );
@@ -478,7 +484,7 @@ export class GitService extends EventEmitter {
 
         } catch (error: any) {
             this.outputChannel.appendLine(`anthrax: Error creating tracking directory - ${error.message}`);
-            
+
             throw error;
         }
     }
@@ -578,6 +584,8 @@ export class GitService extends EventEmitter {
 !/changes/
 !/.gitignore
 !/.gitkeep
+!/.github/
+!/.github/workflows/
 
 # Ensure no workspace files are tracked
 *.workspace
@@ -588,6 +596,8 @@ node_modules/`;
         await fs.promises.writeFile(gitignorePath, gitignoreContent);
         await this.git.add('.gitignore');
         await this.git.commit('Anthrax: Added gitignore to protect workspace');
+
+        this.outputChannel.appendLine(`Anthrax: Gitignore added successfully}`);
     }
 
 
@@ -670,201 +680,95 @@ node_modules/`;
         }
     }
 
-
     private async setupGitHubWorkflow(): Promise<void> {
         try {
-            // Creating .github/workflows dir in tracking repo
             const workflowsDir = path.join(this.currentTrackingDir, '.github', 'workflows');
-
             await fs.promises.mkdir(workflowsDir, { recursive: true });
 
-
-            // Create build-and-deploy yaml
             const workflowPath = path.join(workflowsDir, 'build-and-deploy.yml');
-
-            // The workflow runs when a push occurs to the main branch. It only triggers when files in stats/ or stats-data/ are modified. Ensures stats website updates automatically after a push.
             const workflowContent = `name: Build and Deploy Stats
-
-  on:
-    push:
-      branches: [ main ]
-      paths:
-        - 'stats/**'
-        - 'stats-data/**'
-  
-  jobs:
-    build-and-deploy:
-      runs-on: ubuntu-latest
-      permissions:
-        pages: write
-        id-token: write
-      environment:
-        name: github-pages
-        url: \${{ steps.deployment.outputs.page_url }}
-      steps:
-        - uses: actions/checkout@v3
-        
-        - name: Set up Node.js
-          uses: actions/setup-node@v3
-          with:
-            node-version: '18'
-            cache: 'npm'
-            
-        - name: Install Dependencies
-          run: |
-            cd stats
-            npm install
-            
-        - name: Build Website
-          run: |
-            cd stats
-            npm run build
-            
-        - name: Setup Pages
-          uses: actions/configure-pages@v4
-          
-        - name: Upload artifact
-          uses: actions/upload-pages-artifact@v3
-          with:
-            path: stats/dist
-            
-        - name: Deploy to GitHub Pages
-          id: deployment
-          uses: actions/deploy-pages@v4`;
-
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "stats/**"
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+      contents: write
+    environment:
+      name: github-pages
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+      - name: Install Dependencies
+        run: cd stats && npm install
+      - name: Build Website
+        run: cd stats && npm run build
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: stats/dist
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4`;
 
             await fs.promises.writeFile(workflowPath, workflowContent);
-
-            // Add and commit the workflow file
             await this.git.add(workflowPath);
-            await this.git.commit('Anthrax: Add GitHub Actions workflow for stats website');
-
-            const currentBranch = (await this.git.branch()).current;
-            await this.git.push('origin', currentBranch);
-
+            await this.git.commit('Anthrax: Add GitHub Actions workflow');
+            await this.git.push('origin', 'main');
             this.outputChannel.appendLine('Anthrax: GitHub Actions workflow setup complete');
 
         } catch (error) {
             this.outputChannel.appendLine(`Anthrax: Error setting up GitHub Actions workflow - ${error}`);
-            throw error;
+            // Log but don’t throw, allowing setup to continue
+            this.outputChannel.appendLine('Anthrax: Continuing setup despite GitHub Actions failure');
         }
     }
 
-
     public async initializeRepo(remoteUrl: string): Promise<void> {
-        return this.enqueueOperation(
-            async () => {
-                try {
-                    if (!(await this.validateWorkspace())) {
-                        return;
-                    }
-
-                    // Initialize Git first
-                    await this.ensureGitInitialized();
-                    await this.setupGitIgnore();
-                    await this.createTrackingDirectory();
-                    await this.setupGitHubWorkflow();
-
-
-                    const changesDir = path.join(this.currentTrackingDir, 'changes');
-                    if (!fs.existsSync(changesDir)) {
-                        await fs.promises.mkdir(changesDir, { recursive: true });
-                    }
-
-
-                    // Create a .gitkeep to ensure changes in Directory are tracked
-                    const gitkeepPath = path.join(changesDir, '.gitkeep');
-                    if (!fs.existsSync(gitkeepPath)) {
-                        await fs.promises.writeFile(gitkeepPath, '');
-                    }
-
-
-                    const gitignorePath = path.join(this.currentTrackingDir, '.gitignore');
-                    const gitignoreContent = `
-    # Anthrax - Ignore system files only
-    .DS_Store
-    node_modules/
-    .vscode/
-    *.log
-    
-    # Ensure changes directory is tracked
-    !changes/
-    !changes/*
-    `;
-
-                    await fs.promises.writeFile(gitignorePath, gitignoreContent);
-
-                    const options: Partial<SimpleGitOptions> = {
-                        baseDir: this.currentTrackingDir,
-                        binary: this.findGitExecutable(),
-                        maxConcurrentProcesses: 1,
-                    }
-
-                    this.git = simpleGit(options);
-                    const isRepo = await this.git.checkIsRepo();                    // Validates that the current working directory is a valid git repo path.
-
-                    if (!isRepo) {
-                        await this.git.init();                                      // Initialize a git Repo
-                        await this.git.addConfig(
-                            'user.name',                                            // Adding user name and email for git intialization
-                            'Anthrax',
-                            false,
-                            'local');
-
-                        await this.git.addConfig(
-                            'user.email',
-                            'vatshivam49888@gmail.com',
-                            false,
-                            'local',
-                        );
-
-                        await this.git.add(['.gitignore', 'changes/.gitkeep']);
-                        await this.git.commit('Anthrax: Initializing tracking Repo');
-
-
-                        // Excplicitly create and checkout main branch
-                        await this.git.raw(['branch', '-M', 'main']);
-
-                    };
-
-
-                    // Check if remote exists
-                    const remotes = await this.git.getRemotes();
-                    const hasOrigin = remotes.some(               // Determines whether the specified callback function returns true for any element of an array.
-                        (remoteName) => remoteName.name === 'origin'
-                    );
-
-
-                    if (!hasOrigin) {
-                        await this.git.addRemote('origin', remoteUrl);
-                        this.outputChannel.appendLine(`Anthrax: Added Remote origin: ${remoteUrl}`);
-                    } else {
-                        await this.git.remote(['set-url', 'origin', remoteUrl]);
-                        this.outputChannel.appendLine(`Updated remote origin to: ${remoteUrl}`);
-                    }
-
-
-
-                    // Ensure we are on main branch before setting up Tracking
-                    const branches = await this.git.branch();              // List all branches
-                    if (!branches.current || branches.current != 'main') {
-                        await this.git.checkout('main');
-                    }
-
-
-                    // Set-up Remote Tracking
-                    await this.setupRemoteTracking();
-                    await this.initializeStatistics(true);
-
-                    this.outputChannel.appendLine('AnthraxL Repo intialization complete');
-
-                } catch (error: any) {
-                    this.outputChannel.appendLine(`Anthrax: Failed to initialize repository - ${error.message}`);
-
-                    throw error;
+        return this.enqueueOperation(async () => {
+            try {
+                if (!(await this.validateWorkspace())) {
+                    throw new Error('Workspace validation failed');
                 }
+
+                // Basic setup
+                await this.ensureRepoSetup(remoteUrl);
+                await this.setupGitIgnore();
+
+                const changesDir = path.join(this.currentTrackingDir, 'changes');
+                if (!fs.existsSync(changesDir)) {
+                    await fs.promises.mkdir(changesDir, { recursive: true });
+                    await fs.promises.writeFile(path.join(changesDir, '.gitkeep'), '');
+                    await this.git.add('changes/.gitkeep');
+                }
+
+                await this.git.commit('Anthrax: Initial commit');
+                await this.git.push(['--set-upstream', 'origin', 'main']);
+                this.outputChannel.appendLine('Anthrax: Initial push successful');
+
+                // Additional setup after remote is established
+                await this.initializeStatistics(true);
+                await this.setupGitHubWorkflow(); // Now optional due to error handling
+
+                this.outputChannel.appendLine('Anthrax: Repo initialization complete');
+
+            } catch (error: any) {
+                this.outputChannel.appendLine(`Anthrax: Failed to initialize repository - ${error.message}`);
+                throw error;
             }
-        );
+        });
     }
 
 
@@ -894,46 +798,75 @@ node_modules/`;
     // Helper method to ensure repository and remote are properly set up
     public async ensureRepoSetup(remoteUrl: string): Promise<void> {
         try {
-            // Initialize Git first
+            // Ensure Git is initialized
             await this.ensureGitInitialized();
+            this.outputChannel.appendLine('Anthrax: Git initialization confirmed');
 
             const isRepo = await this.git.checkIsRepo();
             if (!isRepo) {
-                await this.initializeRepo(remoteUrl);
-                return;
+                await this.git.init();
+                this.outputChannel.appendLine('Anthrax: Initialized new Git repository');
+                await this.git.addConfig('user.name', 'Anthrax', false, 'local');
+                await this.git.addConfig('user.email', 'vatshivam49888@gmail.com', false, 'local');
+                await this.git.checkoutLocalBranch('main');
+                this.outputChannel.appendLine('Anthrax: Created main branch');
+            } else {
+                this.outputChannel.appendLine('Anthrax: Existing Git repository detected');
             }
 
-            // Check remote
+            // Check and set remote
             const remotes = await this.git.getRemotes();
+            this.outputChannel.appendLine(`Anthrax: Current remotes: ${JSON.stringify(remotes)}`);
             const hasOrigin = remotes.some((remote) => remote.name === 'origin');
 
             if (!hasOrigin) {
                 await this.git.addRemote('origin', remoteUrl);
-                this.outputChannel.appendLine(`Anthrax: Added remote origin ${remoteUrl}`);
+                this.outputChannel.appendLine(`Anthrax: Added remote origin ${remoteUrl.replace(/x-access-token:[^@]+@/, 'x-access-token:[hidden]@')}`);
             } else {
-                // Update existing remote URL
-                await this.git.remote(['set-url', 'origin', remoteUrl]);
-                this.outputChannel.appendLine(`Anthrax: Updated remote origin to ${remoteUrl}`);
+                const currentRemoteResult = await this.git.getConfig('remote.origin.url');
+                const currentRemote = currentRemoteResult.value;
+                this.outputChannel.appendLine(`Anthrax: Current origin URL: ${currentRemote || 'none'}`);
+                if (currentRemote !== remoteUrl && currentRemote !== null) {
+                    await this.git.removeRemote('origin');
+                    this.outputChannel.appendLine('Anthrax: Removed existing origin');
+                    await this.git.addRemote('origin', remoteUrl);
+                    this.outputChannel.appendLine(`Anthrax: Updated remote origin to ${remoteUrl.replace(/x-access-token:[^@]+@/, 'x-access-token:[hidden]@')}`);
+                } else {
+                    this.outputChannel.appendLine('Anthrax: Origin already matches expected URL or is unset');
+                }
             }
-            await this.initializeStatistics(false);
 
-            // Ensure we have the correct tracking branch
+            // Sync with remote
             try {
-                const branches = await this.git.branch();
-                await this.git.checkout('main');
-                await this.git.push(['--set-upstream', 'origin', 'main']);
-            } catch (error: any) {
-                this.outputChannel.appendLine(`Anthrax: Error setting up tracking branch - ${error.message}`);
-                // Continue even if push fails - we'll retry on next operation
+                await this.git.fetch('origin', 'main');
+                this.outputChannel.appendLine('Anthrax: Fetched origin/main');
+                const status = await this.git.status();
+                if (status.current === 'main') {
+                    await this.git.reset(['--hard', 'origin/main']);
+                    this.outputChannel.appendLine('Anthrax: Reset local main to match origin/main');
+                }
+            } catch (fetchError: any) {
+                this.outputChannel.appendLine(`Anthrax: Fetch failed (likely no remote branch yet) - ${fetchError.message}`);
+                // If fetch fails (e.g., remote branch doesn’t exist), proceed without syncing
             }
+
+            // Verify remote setup
+            const verifiedRemotes = await this.git.remote(['-v']);
+            this.outputChannel.appendLine(`Anthrax: Verified remotes: ${verifiedRemotes || 'none'}`);
+            if (typeof verifiedRemotes === 'string' && !verifiedRemotes.includes('origin')) {
+                throw new Error('Failed to verify origin remote after setup');
+            } else if (!verifiedRemotes) {
+                throw new Error('No remotes returned from git remote -v');
+            }
+
+            this.outputChannel.appendLine('Anthrax: Repo setup complete (no push attempted)');
+
         } catch (error: any) {
-            this.outputChannel.appendLine(
-                `Anthrax: Error ensuring repo setup - ${error.message}`
-            );
+            this.outputChannel.appendLine(`Anthrax: Error ensuring repo setup - ${error.message}`);
+            this.outputChannel.appendLine(`Anthrax: Stack trace - ${error.stack || 'No stack available'}`);
             throw error;
         }
     }
-
 
     private async updateStatsData(stats: any): Promise<void> {
         try {
@@ -1278,13 +1211,11 @@ node_modules/`;
                     throw new Error('Git not initialized');
                 }
 
-                // Create a changes directory if it doesn't exist
                 const changesDir = path.join(this.currentTrackingDir, 'changes');
                 if (!fs.existsSync(changesDir)) {
                     await fs.promises.mkdir(changesDir, { recursive: true });
                 }
 
-                // Extract file content from the commit message
                 const codeBlockRegex = /```\n(.*?):\n([\s\S]*?)```/g;
                 let match;
                 const timestamp = this.formatTimestamp(new Date());
@@ -1295,52 +1226,51 @@ node_modules/`;
                     const cleanFilename = filename.trim();
                     const extension = path.extname(cleanFilename);
                     const baseNameWithoutExt = path.basename(cleanFilename, extension);
-
-                    // Create filename with timestamp: 2025-02-15-1200-00-AM-original_name.ts
                     const timestampedFilename = `${timestamp.sortable}-${baseNameWithoutExt}${extension}`;
                     const filePath = path.join(changesDir, timestampedFilename);
 
-                    // Write the actual code file
                     await fs.promises.writeFile(filePath, code.trim());
                     filesToAdd.push(filePath);
                 }
 
-                // Update the commit message to include local timezone
                 const updatedMessage = message.replace(
                     /Anthrax Update - [0-9T:.-Z]+/,
                     `Anthrax Update - ${timestamp.readable}`
                 );
 
+                this.outputChannel.appendLine(`Current Tracking Directory: ${this.currentTrackingDir}`);
                 this.emitSafe('operation:start', 'commitAndPush');
 
                 await this.withRetry(async () => {
                     const branches = await this.git.branch();
                     const currentBranch = branches.current;
 
-                    // Stage only the new code files
                     for (const file of filesToAdd) {
                         await this.git.add(file);
                     }
 
-                    // Commit with the enhanced message
                     await this.git.commit(updatedMessage);
                     this.emitSafe('commit', updatedMessage);
 
+                    // Sync with remote before pushing
                     try {
-                        await this.git.push([
-                            'origin',
-                            currentBranch,
-                            '--force-with-lease',
-                        ]);
+                        await this.git.fetch('origin', 'main');
+                        await this.git.merge(['origin/main']);
+                        this.outputChannel.appendLine('Anthrax: Merged origin/main');
+                    } catch (fetchError: any) {
+                        this.outputChannel.appendLine(`Anthrax: Fetch/merge skipped (likely no remote branch yet) - ${fetchError.message}`);
+                    }
+
+                    try {
+                        await this.git.push(['origin', currentBranch]);
                         this.emitSafe('push', currentBranch);
                     } catch (pushError: any) {
-                        if (pushError.message.includes('no upstream branch')) {
-                            await this.setupRemoteTracking();
-                            await this.git.push([
-                                'origin',
-                                currentBranch,
-                                '--force-with-lease',
-                            ]);
+                        this.outputChannel.appendLine(`Anthrax: Push failed - ${pushError.message}`);
+                        if (pushError.message.includes('rejected') || pushError.message.includes('stale info')) {
+                            await this.git.fetch('origin', 'main');
+                            await this.git.rebase(['origin/main']);
+                            await this.git.push(['origin', currentBranch]);
+                            this.outputChannel.appendLine('Anthrax: Rebased and pushed successfully');
                         } else {
                             throw pushError;
                         }
@@ -1350,10 +1280,11 @@ node_modules/`;
                 this.emitSafe('operation:end', 'commitAndPush');
                 const stats = await this.getUpdatedStats();
                 await this.updateStatsData(stats);
+
+                this.outputChannel.appendLine('Anthrax: Commit and push completed');
+
             } catch (error: any) {
-                this.outputChannel.appendLine(
-                    `Anthrax: Git commit failed - ${error.message}`
-                );
+                this.outputChannel.appendLine(`Anthrax: Git commit failed - ${error.message}`);
                 this.emitSafe('error', error);
                 throw error;
             }
