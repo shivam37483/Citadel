@@ -33,11 +33,7 @@
     ],
     "activationEvents": [
         "onStartupFinished",
-        "onCommand:syncforge.login",
-        "onCommand:syncforge.startTracking",
-        "onCommand:syncforge.stopTracking",
-        "onCommand:syncforge.logout",
-        "onCommand:syncforge.test"
+        "onView:syncforge"
     ],
     "main": "./dest/extension.js",
     "icon": "assets/img.jpg",
