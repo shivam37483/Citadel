@@ -32,8 +32,7 @@
         "documentation"
     ],
     "activationEvents": [
-        "onStartupFinished",
-        "onView:syncforge"
+        "onStartupFinished"
     ],
     "main": "./dest/extension.js",
     "icon": "assets/img.jpg",

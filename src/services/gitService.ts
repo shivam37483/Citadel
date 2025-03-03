@@ -592,7 +592,7 @@ node_modules/`;
 
         await fs.promises.writeFile(gitignorePath, gitignoreContent);
         await this.git.add('.gitignore');
-        await this.git.commit('syncforge: Added gitignore to protect workspace');
+        await this.git.commit('Syncforge: Added gitignore to protect workspace');
 
         this.outputChannel.appendLine(`Syncforge: Gitignore added successfully}`);
     }
@@ -1024,7 +1024,7 @@ node_modules/`;
       
           // Add to git
           await this.git.add(statsDir);
-          await this.git.commit('syncforge: Update Statistics data and Website');
+          await this.git.commit('Syncforge: Update Statistics data and Website');
       
           const currentBranch = (await this.git.branch()).current;
           await this.git.push('origin', currentBranch);
