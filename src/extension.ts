@@ -13,7 +13,7 @@ import { Buffer } from 'node:buffer';
 import { channel } from 'node:diagnostics_channel';
 
 
-interface AnthraxServices {
+interface SyncforgeServices {
     outputChannel: vscode.OutputChannel,
     githubService: GitHubService,
     gitService: GitService,
@@ -43,7 +43,7 @@ class GitInstallationHandler {
         try {
             const gitVersion = execSync('git --version', { encoding: 'utf8' });
 
-            outputChannel.appendLine(`anthrax: Git found - ${gitVersion.trim()}`);
+            outputChannel.appendLine(`syncforge: Git found - ${gitVersion.trim()}`);
 
             return true;
         } catch (error) {
@@ -188,12 +188,12 @@ class GitInstallationHandler {
 
 function showWelcomeInfo(outputChannel: vscode.OutputChannel): void {
     const welcomeMessage = `
-To get started with Anthrax, you'll need:
+To get started with Syncforge, you'll need:
 1. A GitHub account
 2. An open workspace/folder
 3. Git installed on your system
 
-Anthrax will:
+Syncforge will:
 - Create a private GitHub repository to store your coding activity
 - Automatically track and commit your changes
 - Generate detailed summaries of your work
@@ -203,27 +203,27 @@ Anthrax will:
         .showInformationMessage(welcomeMessage, 'Set Up Now', 'Later')
         .then((choice) => {
             if (choice === 'Set Up Now') {
-                vscode.commands.executeCommand('anthrax.login');
+                vscode.commands.executeCommand('syncforge.login');
             }
         });
 }
 
 // Welcome Message
-function showWelcomeMessage(context: vscode.ExtensionContext, services: AnthraxServices): void {
-    if (!context.globalState.get('anthraxWelcomeShown')) {
-        const message = 'Welcome to Anthrax! Would you like to set up automatic code tracking?';
+function showWelcomeMessage(context: vscode.ExtensionContext, services: SyncforgeServices): void {
+    if (!context.globalState.get('syncforgeWelcomeShown')) {
+        const message = 'Welcome to Syncforge! Would you like to set up autonomous code tracking?';
 
         vscode.window
             .showInformationMessage(message, 'Get Started', 'Learn More', 'Later')
             .then((selection) => {
                 if (selection === 'Get Started') {
-                    vscode.commands.executeCommand('anthrax.login');
+                    vscode.commands.executeCommand('syncforge.login');
                 } else if (selection === 'Learn More') {
                     showWelcomeInfo(services.outputChannel);
                 }
             });
 
-        context.globalState.update('anthraxWelcomeShown', true);
+        context.globalState.update('syncforgeWelcomeShown', true);
     }
 }
 
@@ -235,50 +235,50 @@ function createStatusBarItem(type: 'tracking' | 'auth'): vscode.StatusBarItem {
     );
 
     if (type === 'tracking') {
-        item.text = '$(circle-slash) Anthrax: Stopped';
+        item.text = '$(circle-slash) Syncforge: Stopped';
         item.tooltip = 'Click to start/stop tracking';
-        item.command = 'anthrax.startTracking';
+        item.command = 'syncforge.startTracking';
     } else {
-        item.text = '$(mark-github) Anthrax: Not Connected';
+        item.text = '$(mark-github) Syncforge: Not Connected';
         item.tooltip = 'Click to connect to GitHub';
-        item.command = 'anthrax.login';
+        item.command = 'syncforge.login';
     }
 
     return item;
 }
 
 // UI Updates
-function updateStatusBar(services: AnthraxServices, type: 'tracking' | 'auth', active: boolean): void {
+function updateStatusBar(services: SyncforgeServices, type: 'tracking' | 'auth', active: boolean): void {
     if (type === 'tracking') {
         services.trackingStatusBar.text = active
-            ? '$(clock) anthrax: Tracking'
-            : '$(circle-slash) anthrax: Stopped';
+            ? '$(clock) Syncforge: Tracking'
+            : '$(circle-slash) Syncforge: Stopped';
         services.trackingStatusBar.tooltip = active
             ? 'Click to stop tracking'
             : 'Click to start tracking';
         services.trackingStatusBar.command = active
-            ? 'anthrax.stopTracking'
-            : 'anthrax.startTracking';
+            ? 'syncforge.stopTracking'
+            : 'syncforge.startTracking';
     } else {
         services.authStatusBar.text = active
-            ? '$(check) anthrax: Connected'
-            : '$(mark-github) anthrax: Not Connected';
+            ? '$(check) Syncforge: Connected'
+            : '$(mark-github) Syncforge: Not Connected';
         services.authStatusBar.tooltip = active
             ? 'Click to logout'
             : 'Click to connect to GitHub';
         services.authStatusBar.command = active
-            ? 'anthrax.logout'
-            : 'anthrax.login';
+            ? 'syncforge.logout'
+            : 'syncforge.login';
     }
 }
 
-async function restoreAuthState(context: vscode.ExtensionContext, services: AnthraxServices): Promise<boolean> {
+async function restoreAuthState(context: vscode.ExtensionContext, services: SyncforgeServices): Promise<boolean> {
     try {
-        const persistedState = context.globalState.get<PersistedAuthState>('anthraxAuthState');
-        const config = vscode.workspace.getConfiguration('anthrax');
+        const persistedState = context.globalState.get<PersistedAuthState>('syncforgeAuthState');
+        const config = vscode.workspace.getConfiguration('syncforge');
         const repoName = config.get<string>('repoName') || persistedState?.reponame || 'code-tracking';
 
-        services.outputChannel.appendLine('Anthrax: Starting setup process...');
+        services.outputChannel.appendLine('Syncforge: Starting setup process...');
 
         let session = await vscode.authentication.getSession(
             'github',
@@ -290,40 +290,40 @@ async function restoreAuthState(context: vscode.ExtensionContext, services: Anth
         const isFreshInstall = !persistedState || !session;
 
         if (isFreshInstall) {
-            services.outputChannel.appendLine('Anthrax: Fresh install detected, prompting for GitHub auth...');
+            services.outputChannel.appendLine('Syncforge: Fresh install detected, prompting for GitHub auth...');
             session = await vscode.authentication.getSession(
                 'github',
                 ['repo', 'read:user', 'workflow'], // Added 'workflow' scope
                 { createIfNone: true }
             );
             if (!session) {
-                services.outputChannel.appendLine('Anthrax: GitHub authentication canceled.');
+                services.outputChannel.appendLine('Syncforge: GitHub authentication canceled.');
                 return false;
             }
         } else if (!session) {
-            services.outputChannel.appendLine('Anthrax: No active GitHub session found.');
+            services.outputChannel.appendLine('Syncforge: No active GitHub session found.');
             return false;
         }
 
         services.githubService.setToken(session.accessToken);
         username = await services.githubService.getUsername();
         if (!username) {
-            services.outputChannel.appendLine('Anthrax: Failed to retrieve GitHub username.');
+            services.outputChannel.appendLine('Syncforge: Failed to retrieve GitHub username.');
             return false;
         }
 
         const remoteUrl = `https://x-access-token:${session.accessToken}@github.com/${username}/${repoName}.git`;
-        services.outputChannel.appendLine(`Anthrax: Using remote URL: ${remoteUrl.replace(/x-access-token:[^@]+@/, 'x-access-token:[hidden]@')}`);
+        services.outputChannel.appendLine(`Syncforge: Using remote URL: ${remoteUrl.replace(/x-access-token:[^@]+@/, 'x-access-token:[hidden]@')}`);
 
         if (isFreshInstall) {
             const repoExists = await services.githubService.repoExists(repoName);
             if (!repoExists) {
                 const createdRepoUrl = await services.githubService.createRepo(repoName);
-                services.outputChannel.appendLine(`Anthrax: Created GitHub repository at ${createdRepoUrl}`);
+                services.outputChannel.appendLine(`Syncforge: Created GitHub repository at ${createdRepoUrl}`);
                 if (!createdRepoUrl) {
                     throw new Error('Failed to create GitHub repository.');
                 }
-                await services.gitService.initializeRepo(remoteUrl);
+                await services.gitService.initializeRepo(remoteUrl, services.githubService);
             } else {
                 await services.gitService.ensureRepoSetup(remoteUrl);
             }
@@ -334,34 +334,34 @@ async function restoreAuthState(context: vscode.ExtensionContext, services: Anth
         await initializeTracker(services);
 
         if (isFreshInstall) {
-            await context.globalState.update('anthraxAuthState', {
+            await context.globalState.update('syncforgeAuthState', {
                 username,
                 reponame: repoName,
                 lastWorkspace: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
             });
-            services.outputChannel.appendLine('Anthrax: Saved initial authentication state.');
+            services.outputChannel.appendLine('Syncforge: Saved initial authentication state.');
         }
 
         updateStatusBar(services, 'auth', true);
         updateStatusBar(services, 'tracking', true);
-        services.outputChannel.appendLine(`Anthrax: ${isFreshInstall ? 'Initialized' : 'Restored'} successfully`);
+        services.outputChannel.appendLine(`Syncforge: ${isFreshInstall ? 'Initialized' : 'Restored'} successfully`);
 
         return true;
 
     } catch (error) {
-        services.outputChannel.appendLine(`Anthrax: Error in setup - ${error}`);
+        services.outputChannel.appendLine(`Syncforge: Error in setup - ${error}`);
         return false;
     }
 }
 
-async function initializeServices(context: vscode.ExtensionContext, channel: vscode.OutputChannel): Promise<AnthraxServices | null> {
+async function initializeServices(context: vscode.ExtensionContext, channel: vscode.OutputChannel): Promise<SyncforgeServices | null> {
     try {
         const homeDir = homedir();
         if (!homeDir) {
             throw new Error('Unable to determine Home Dir');
         }
 
-        const trackingBase = path.join(homeDir, '.anthrax', 'tracking');
+        const trackingBase = path.join(homeDir, '.syncforge', 'tracking');
         await fs.promises.mkdir(trackingBase, { recursive: true });
 
         const workspaceId = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
@@ -370,7 +370,7 @@ async function initializeServices(context: vscode.ExtensionContext, channel: vsc
         const trackingDir = path.join(trackingBase, workspaceId);
         await fs.promises.mkdir(trackingDir, { recursive: true });
 
-        const services: AnthraxServices = {
+        const services: SyncforgeServices = {
             outputChannel: channel,
             githubService: new GitHubService(channel),
             gitService: new GitService(channel),
@@ -388,53 +388,53 @@ async function initializeServices(context: vscode.ExtensionContext, channel: vsc
 
         const isSetup = await restoreAuthState(context, services);
         if (!isSetup) {
-            channel.appendLine('Anthrax: Setup failed. Run "Anthrax: Login" to retry.');
+            channel.appendLine('Syncforge: Setup failed. Run "Syncforge: Login" to retry.');
             return services;
         }
 
         return services;
 
     } catch (error) {
-        channel.appendLine(`Anthrax: Service initialization error - ${error}`);
+        channel.appendLine(`Syncforge: Service initialization error - ${error}`);
         return null;
     }
 }
 
-async function clearGlobalState(services: AnthraxServices) {
-    await services.extensionContext.globalState.update('anthraxAuthState', undefined);
-    services.outputChannel.appendLine('Anthrax: Cleared global state.');
-    vscode.window.showInformationMessage('Anthrax: Global state cleared.');
+async function clearGlobalState(services: SyncforgeServices) {
+    await services.extensionContext.globalState.update('syncforgeAuthState', undefined);
+    services.outputChannel.appendLine('Syncforge: Cleared global state.');
+    vscode.window.showInformationMessage('Syncforge: Global state cleared.');
 }
 
-async function registerCommands(context: vscode.ExtensionContext, services: AnthraxServices): Promise<void> {
+async function registerCommands(context: vscode.ExtensionContext, services: SyncforgeServices): Promise<void> {
     const commands = [
         {
-            command: 'anthrax.startTracking',
+            command: 'syncforge.startTracking',
             callback: () => handleStartTracking(services),
         },
         {
-            command: 'anthrax.stopTracking',
+            command: 'syncforge.stopTracking',
             callback: () => handleStopTracking(services),
         },
         {
-            command: 'anthrax.login',
+            command: 'syncforge.login',
             callback: () => handleLogin(services),
         },
         {
-            command: 'anthrax.logout',
+            command: 'syncforge.logout',
             callback: () => handleLogout(services),
         },
         // Add missing commands
         {
-            command: 'anthrax.showGitGuide',
+            command: 'syncforge.showGitGuide',
             callback: () => GitInstallationHandler.showInstallationGuide(),
         },
         {
-            command: 'anthrax.openFolder',
+            command: 'syncforge.openFolder',
             callback: () => vscode.commands.executeCommand('vscode.openFolder'),
         },
         {
-            command: 'anthrax.clearState',
+            command: 'syncforge.clearState',
             callback: () => clearGlobalState(services),
         }
         // Note: We'll register generateWebsite separately in registerWebsiteCommands
@@ -447,9 +447,9 @@ async function registerCommands(context: vscode.ExtensionContext, services: Anth
 }
 
 
-async function handleLogout(services: AnthraxServices): Promise<void> {
+async function handleLogout(services: SyncforgeServices): Promise<void> {
     const confirm = await vscode.window.showWarningMessage(
-        'Are you sure you want to logout from anthrax?',
+        'Are you sure you want to logout from syncforge?',
         { modal: true },
         'Yes',
         'No'
@@ -462,10 +462,10 @@ async function handleLogout(services: AnthraxServices): Promise<void> {
     try {
         cleanUp(services);
         await services.extensionContext.globalState.update(
-            'anthraxAuthState',
+            'syncforgeAuthState',
             undefined
         );
-        vscode.window.showInformationMessage('anthrax: Successfully logged out.');
+        vscode.window.showInformationMessage('syncforge: Successfully logged out.');
 
         const loginChoice = await vscode.window.showInformationMessage(
             'Would you like to log in with a different account?',
@@ -474,20 +474,20 @@ async function handleLogout(services: AnthraxServices): Promise<void> {
         );
 
         if (loginChoice === 'Yes') {
-            await vscode.commands.executeCommand('anthrax.login');
+            await vscode.commands.executeCommand('syncforge.login');
         }
     } catch (error: any) {
         handleError(services, 'Logout failed', error);
     }
 }
 
-function cleanUp(services: AnthraxServices): void {
+function cleanUp(services: SyncforgeServices): void {
     try {
         services.githubService.setToken('');
 
         updateStatusBar(services, 'auth', false);
 
-        services.outputChannel.appendLine('Anthrax: Cleaned up services');
+        services.outputChannel.appendLine('Syncforge: Cleaned up services');
 
     } catch (error: any) {
         handleError(services, 'Cleanup - Error', error);
@@ -495,17 +495,17 @@ function cleanUp(services: AnthraxServices): void {
 }
 
 // Error Handling
-function handleError(services: AnthraxServices, context: string, error: Error): void {
+function handleError(services: SyncforgeServices, context: string, error: Error): void {
     const message = error.message || 'An unknown error occurred';
 
-    services.outputChannel.appendLine(`ANTHRAX: ${context} - ${message}`);
+    services.outputChannel.appendLine(`Syncforge: ${context} - ${message}`);
 
-    vscode.window.showErrorMessage(`ANTHRAX: ${message}`);
+    vscode.window.showErrorMessage(`Syncforge: ${message}`);
 }
 
-async function handleLogin(services: AnthraxServices): Promise<void> {
+async function handleLogin(services: SyncforgeServices): Promise<void> {
     try {
-        services.outputChannel.appendLine('Anthrax: Starting login process...');
+        services.outputChannel.appendLine('Syncforge: Starting login process...');
         const session = await vscode.authentication.getSession(
             'github',
             ['repo', 'read:user', 'workflow'], // Added 'workflow' scope
@@ -514,9 +514,9 @@ async function handleLogin(services: AnthraxServices): Promise<void> {
 
         if (session) {
             services.githubService.setToken(session.accessToken);
-            await initializeAnthrax(services);
+            await initializeSyncforge(services);
         } else {
-            vscode.window.showInformationMessage('Anthrax: GitHub connection was cancelled.');
+            vscode.window.showInformationMessage('Syncforge: GitHub connection was cancelled.');
         }
 
     } catch (error: any) {
@@ -525,7 +525,7 @@ async function handleLogin(services: AnthraxServices): Promise<void> {
 }
 
 
-async function handleStartTracking(services: AnthraxServices): Promise<void> {
+async function handleStartTracking(services: SyncforgeServices): Promise<void> {
     try {
         if (!vscode.workspace.workspaceFolders?.length) {
             throw new Error('Please Open a workspace before start tracking');
@@ -540,16 +540,16 @@ async function handleStartTracking(services: AnthraxServices): Promise<void> {
             services.scheduler.start();
 
             updateStatusBar(services, 'tracking', true);
-            vscode.window.showInformationMessage('Anthrax: Tracking started.');
+            vscode.window.showInformationMessage('Syncforge: Tracking started.');
         } else {
             const response = await vscode.window.showInformationMessage(
-                'Anthrax needs to be set up before starting. Would you like to set it up now?',
-                'Set Up Anthrax',
+                'Syncforge needs to be set up before starting. Would you like to set it up now?',
+                'Set Up Syncforge',
                 'Cancel'
             );
 
-            if (response === 'Set Up Anthrax') {
-                await initializeAnthrax(services);
+            if (response === 'Set Up Syncforge') {
+                await initializeSyncforge(services);
             }
         }
     } catch (error) {
@@ -558,22 +558,22 @@ async function handleStartTracking(services: AnthraxServices): Promise<void> {
 }
 
 
-async function handleStopTracking(services: AnthraxServices): Promise<void> {
+async function handleStopTracking(services: SyncforgeServices): Promise<void> {
     if (services.scheduler) {
         services.scheduler.stop();
         updateStatusBar(services, 'tracking', false);
-        vscode.window.showInformationMessage('Anthrax: Tracking stopped.');
+        vscode.window.showInformationMessage('Syncforge: Tracking stopped.');
     } else {
-        vscode.window.showErrorMessage('Anthrax: Please connect to GitHub first.');
+        vscode.window.showErrorMessage('Syncforge: Please connect to GitHub first.');
     }
 }
 
-// Anthrax Intialization
-async function initializeAnthrax(services: AnthraxServices): Promise<void> {
+// Syncforge Intialization
+async function initializeSyncforge(services: SyncforgeServices): Promise<void> {
     try {
-        services.outputChannel.appendLine('Anthrax: Starting initialization...');
+        services.outputChannel.appendLine('Syncforge: Starting initialization...');
         if (!(await GitInstallationHandler.checkGitIntstallation(services.outputChannel))) {
-            throw new Error('Git must be installed before ANTHRAX can be initialized.');
+            throw new Error('Git must be installed before Syncforge can be initialized.');
         }
 
         const session = await vscode.authentication.getSession(
@@ -583,7 +583,7 @@ async function initializeAnthrax(services: AnthraxServices): Promise<void> {
         );
 
         if (!session) {
-            throw new Error('GitHub authentication is required to use Anthrax.');
+            throw new Error('GitHub authentication is required to use Syncforge.');
         }
 
         services.githubService.setToken(session.accessToken);
@@ -592,7 +592,7 @@ async function initializeAnthrax(services: AnthraxServices): Promise<void> {
             throw new Error('Unable to retrieve GitHub username.');
         }
 
-        const config = vscode.workspace.getConfiguration('anthrax');
+        const config = vscode.workspace.getConfiguration('syncforge');
         const repoName = config.get<string>('repoName') || 'code-tracking';
         const remoteUrl = `https://x-access-token:${session.accessToken}@github.com/${username}/${repoName}.git`;
 
@@ -611,14 +611,14 @@ async function initializeAnthrax(services: AnthraxServices): Promise<void> {
         updateStatusBar(services, 'auth', true);
         updateStatusBar(services, 'tracking', true);
 
-        await services.extensionContext.globalState.update('anthraxAuthState', {
+        await services.extensionContext.globalState.update('syncforgeAuthState', {
             username,
             repoName,
             lastWorkspace: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
         });
 
-        services.outputChannel.appendLine('Anthrax: Initialization completed successfully');
-        vscode.window.showInformationMessage('Anthrax has been set up successfully and tracking has started.');
+        services.outputChannel.appendLine('Syncforge: Initialization completed successfully');
+        vscode.window.showInformationMessage('Syncforge has been set up successfully and tracking has started.');
 
     } catch (error: any) {
         handleError(services, 'Initialization Failed', error);
@@ -626,8 +626,8 @@ async function initializeAnthrax(services: AnthraxServices): Promise<void> {
     }
 }
 
-async function initializeTracker(services: AnthraxServices): Promise<void> {
-    const config = vscode.workspace.getConfiguration('anthrax');
+async function initializeTracker(services: SyncforgeServices): Promise<void> {
+    const config = vscode.workspace.getConfiguration('syncforge');
     const commitFrequency = config.get<number>('commitFrequency') || 30;
 
     services.scheduler = new Scheduler(
@@ -639,21 +639,21 @@ async function initializeTracker(services: AnthraxServices): Promise<void> {
     );
 
     services.scheduler.start();
-    services.outputChannel.appendLine(`Anthrax: Tracker initialized with ${commitFrequency} minute intervals`);
+    services.outputChannel.appendLine(`Syncforge: Tracker initialized with ${commitFrequency} minute intervals`);
 }
 
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     // Creates an Output Channel First to be used throughout
-    const channel = vscode.window.createOutputChannel('Anthrax');
+    const channel = vscode.window.createOutputChannel('Syncforge');
     context.subscriptions.push(channel);
-    channel.appendLine('Anthrax: Extension activating...');
+    channel.appendLine('Syncforge: Extension activating...');
 
     try {
         // Register Test Command
-        const testCommand = vscode.commands.registerCommand('anthrax.test', () => {
-            vscode.window.showInformationMessage('Anthrax Debug Version: Test Command Executed');
-            channel.appendLine('Anthrax Debug Version: Test Command Executed');
+        const testCommand = vscode.commands.registerCommand('syncforge.test', () => {
+            vscode.window.showInformationMessage('Syncforge Debug Version: Test Command Executed');
+            channel.appendLine('Syncforge Debug Version: Test Command Executed');
         });
 
         context.subscriptions.push(testCommand);
@@ -672,59 +672,59 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         setupConfigurationHandling(services);
         showWelcomeMessage(context, services);
 
-        channel.appendLine('Anthrax: Extension activated successfully');
+        channel.appendLine('Syncforge: Extension activated successfully');
 
     } catch (error) {
-        channel.appendLine(`Anthrax: Activation error - ${error}`);
-        vscode.window.showErrorMessage('Anthrax: Failed to activate extension');
+        channel.appendLine(`Syncforge: Activation error - ${error}`);
+        vscode.window.showErrorMessage('Syncforge: Failed to activate extension');
     }
 }
 
 
 // Configuration Handling
-function setupConfigurationHandling(services: AnthraxServices): void {
+function setupConfigurationHandling(services: SyncforgeServices): void {
     vscode.workspace.onDidChangeConfiguration((event) => {
-        if (event.affectsConfiguration('anthrax')) {
+        if (event.affectsConfiguration('syncforge')) {
             handleConfigurationChange(services);
         }
     });
 }
 
 
-async function handleConfigurationChange(services: AnthraxServices): Promise<void> {
+async function handleConfigurationChange(services: SyncforgeServices): Promise<void> {
     try {
-        const config = vscode.workspace.getConfiguration('anthrax');
+        const config = vscode.workspace.getConfiguration('syncforge');
 
         // Update commit frequency if scheduler exists
         if (services.scheduler) {
             const newFrequency = config.get<number>('commitFrequency') || 30;
             services.scheduler.updateFrequency(newFrequency);
 
-            services.outputChannel.appendLine(`Anthrax: Updated commit frequency to ${newFrequency} minutes`);
+            services.outputChannel.appendLine(`Syncforge: Updated commit frequency to ${newFrequency} minutes`);
         }
 
         // Update exclude patterns
         const newExcludePatterns = config.get<string[]>('exclude') || [];
         services.tracker.updateExcludePatterns(newExcludePatterns);
-        services.outputChannel.appendLine('Anthrax: Updated exclude patterns');
+        services.outputChannel.appendLine('Syncforge: Updated exclude patterns');
     } catch (error: any) {
         handleError(services, 'Configuration update failed', error);
     }
 }
 
 
-async function registerWebsiteCommands(context: vscode.ExtensionContext, services: AnthraxServices): Promise<void> {
-    services.outputChannel.appendLine('Anthrax: Registering website commands...');
+async function registerWebsiteCommands(context: vscode.ExtensionContext, services: SyncforgeServices): Promise<void> {
+    services.outputChannel.appendLine('Syncforge: Registering website commands...');
 
     // Register command to manually generate website
-    const generateWebsiteCommand = vscode.commands.registerCommand('anthrax.generateWebsite',
+    const generateWebsiteCommand = vscode.commands.registerCommand('syncforge.generateWebsite',
         async () => {
             try {
 
                 vscode.window.withProgress(
                     {
                         location: vscode.ProgressLocation.Notification,
-                        title: 'Anthrax: Generating Statistics website',
+                        title: 'Syncforge: Generating Statistics website',
                         cancellable: false,
                     },
 
@@ -746,7 +746,7 @@ async function registerWebsiteCommands(context: vscode.ExtensionContext, service
                             : 'default';
                         const trackingDir = path.join(
                             homeDir,
-                            '.anthrax',
+                            '.syncforge',
                             'tracking',
                             workspaceId
                         );
@@ -762,18 +762,18 @@ async function registerWebsiteCommands(context: vscode.ExtensionContext, service
 
                         if (!(await services.githubService.repoExists(trackingDir))) {
                             services.outputChannel.appendLine(
-                                `anthrax: Failed to verfiy repo`
+                                `syncforge: Failed to verfiy repo`
                             );
                         }
 
                         // Instead of directly accessing git, use commitAndPush method
-                        await services.gitService.commitAndPush('Anthrax: Update Statistics Website');
+                        await services.gitService.commitAndPush('Syncforge: Update Statistics Website');
 
                         task.report({ message: 'Done!' });
 
                         // Show success message with GitHub Pages URL
                         const username = await services.githubService.getUsername();
-                        const config = vscode.workspace.getConfiguration('anthrax');
+                        const config = vscode.workspace.getConfiguration('syncforge');
                         const repoName = config.get<string>('repoName') || 'code-tracking';
 
                         if (username) {
@@ -781,7 +781,7 @@ async function registerWebsiteCommands(context: vscode.ExtensionContext, service
 
                             const viewWebsite = 'View Website';
                             vscode.window
-                                .showInformationMessage(`anthrax: Statistics website generated and pushed to GitHub. It should be available soon at ${pagesUrl}`,
+                                .showInformationMessage(`syncforge: Statistics website generated and pushed to GitHub. It should be available soon at ${pagesUrl}`,
                                     viewWebsite)
                                 .then((selection) => {
                                     if (selection === viewWebsite) {
@@ -790,24 +790,24 @@ async function registerWebsiteCommands(context: vscode.ExtensionContext, service
                                 });
                         } else {
                             vscode.window.showInformationMessage(
-                                'anthrax: Statistics website generated and pushed to GitHub. It should be available soon.'
+                                'syncforge: Statistics website generated and pushed to GitHub. It should be available soon.'
                             );
                         }
                     }
                 );
             } catch (error: any) {
                 services.outputChannel.appendLine(
-                    `anthrax: Failed to generate website - ${error.message}`
+                    `syncforge: Failed to generate website - ${error.message}`
                 );
                 vscode.window.showErrorMessage(
-                    `anthrax: Failed to generate website - ${error.message}`
+                    `syncforge: Failed to generate website - ${error.message}`
                 );
             }
         }
     );
 
     context.subscriptions.push(generateWebsiteCommand);
-    services.outputChannel.appendLine('Anthrax: Website commands registered successfully.');
+    services.outputChannel.appendLine('Syncforge: Website commands registered successfully.');
 }
 
 export function deactivate() { }

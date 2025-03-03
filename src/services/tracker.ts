@@ -36,7 +36,7 @@ export class Tracker extends EventEmitter {
         try {
             // Wait for workspace to be fully loaded
             if (!vscode.workspace.workspaceFolders?.length) {
-                this.channel.appendLine('Anthrax: Waiting for workspace to load...');
+                this.channel.appendLine('Syncforge: Waiting for workspace to load...');
 
                 const disposable = vscode.workspace.onDidChangeWorkspaceFolders(
                     () => {
@@ -50,25 +50,25 @@ export class Tracker extends EventEmitter {
                 await this.initializeWatcher();
             }
         } catch (error) {
-            this.channel.appendLine(`Anthrax: Initialization error - ${error}`);
+            this.channel.appendLine(`Syncforge: Initialization error - ${error}`);
         }
     }
 
 
     private async initializeWatcher() {
         try {
-            const config = vscode.workspace.getConfiguration('anthrax');
+            const config = vscode.workspace.getConfiguration('Syncforge');
             this.excludePatterns = config.get<string[]>('exclude') || [];
 
             // Log current workspace state
             const workspaceFolders = vscode.workspace.workspaceFolders;
             if (!workspaceFolders || workspaceFolders.length === 0) {
-                this.channel.appendLine('Anthrax: No workspace folder found');
+                this.channel.appendLine('Syncforge: No workspace folder found');
                 return;
             }
 
             const workspaceFolder = workspaceFolders[0];
-            this.channel.appendLine(`Anthrax: Initializing watcher for workspace: ${workspaceFolder.uri.fsPath}`);
+            this.channel.appendLine(`Syncforge: Initializing watcher for workspace: ${workspaceFolder.uri.fsPath}`);
 
             // Create a Watcher file for Specific global pattern for code files
             const filePattern = new vscode.RelativePattern(
@@ -93,7 +93,7 @@ export class Tracker extends EventEmitter {
             // Set up event handlers with logging
             this.watcher.onDidChange(
                 (uri) => {
-                    this.channel.appendLine(`Anthrax: Change detected in file: ${uri.fsPath}`);
+                    this.channel.appendLine(`Syncforge: Change detected in file: ${uri.fsPath}`);
 
                     this.handleChange(uri, 'changed');
                 }
@@ -102,7 +102,7 @@ export class Tracker extends EventEmitter {
 
             this.watcher.onDidCreate(
                 (uri) => {
-                    this.channel.appendLine(`Anthrax: New file Created: ${uri.fsPath}`);
+                    this.channel.appendLine(`Syncforge: New file Created: ${uri.fsPath}`);
 
                     this.handleChange(uri, 'added');
                 }
@@ -111,7 +111,7 @@ export class Tracker extends EventEmitter {
 
             this.watcher.onDidDelete(
                 (uri) => {
-                    this.channel.appendLine(`Anthrax: File Deleted: ${uri.fsPath}`);
+                    this.channel.appendLine(`Syncforge: File Deleted: ${uri.fsPath}`);
 
                     this.handleChange(uri, 'deleted');
                 }
@@ -120,7 +120,7 @@ export class Tracker extends EventEmitter {
 
             // Verify the watcher is active
             this.isInitialized = true;
-            this.channel.appendLine('Anthrax: File system watcher successfully initialized');
+            this.channel.appendLine('Syncforge: File system watcher successfully initialized');
 
 
             // Log intial workspace scan
@@ -128,10 +128,10 @@ export class Tracker extends EventEmitter {
                 '**/*',
                 '**/node_modules/**'
             );
-            this.channel.appendLine(`Anthrax: Found ${files.length} files in workspace`);
+            this.channel.appendLine(`Syncforge: Found ${files.length} files in workspace`);
 
         } catch (error) {
-            this.channel.appendLine(`Anthrax: Failed to initialize watcher - ${error}`);
+            this.channel.appendLine(`Syncforge: Failed to initialize watcher - ${error}`);
 
             this.isInitialized = false;
 
@@ -141,7 +141,7 @@ export class Tracker extends EventEmitter {
     private handleChange(uri: vscode.Uri, type: 'added' | 'changed' | 'deleted') {
         try {
             if (!this.isInitialized) {
-                this.channel.appendLine('Anthrax: Watcher not initialized, reinitializing...');
+                this.channel.appendLine('Syncforge: Watcher not initialized, reinitializing...');
                 this.initialize();
 
                 return;
@@ -178,11 +178,11 @@ export class Tracker extends EventEmitter {
             this.emit('change', change);
 
             // Log the tracked change
-            this.channel.appendLine(`Anthrax: Successfully tracked ${type} in ${vscode.workspace.asRelativePath(uri)}`);
-            this.channel.appendLine(`Anthrax: Current number of tracked changes: ${this.changes.size}`);
+            this.channel.appendLine(`Syncforge: Successfully tracked ${type} in ${vscode.workspace.asRelativePath(uri)}`);
+            this.channel.appendLine(`Syncforge: Current number of tracked changes: ${this.changes.size}`);
 
         } catch (error) {
-            this.channel.appendLine(`Anthrax: Error handling file change: ${error}`);
+            this.channel.appendLine(`Syncforge: Error handling file change: ${error}`);
         }
     }
 
@@ -190,11 +190,11 @@ export class Tracker extends EventEmitter {
     private shouldTrackFile(filePath: string): boolean {
         try {
             // Log the file being Checked
-            this.channel.appendLine(`Anthrax: Checking file: ${filePath}`);
+            this.channel.appendLine(`Syncforge: Checking file: ${filePath}`);
 
             // Skip the files in Tracking Dir
             if (filePath.includes(this.trackingDir)) {
-                this.channel.appendLine(`Anthrax: Skipping file in tracking directory: ${filePath}`);
+                this.channel.appendLine(`Syncforge: Skipping file in tracking directory: ${filePath}`);
 
                 return false;
             }
@@ -207,7 +207,7 @@ export class Tracker extends EventEmitter {
             );
 
             if (isExcluded) {
-                this.channel.appendLine(`Anthrax: File excluded by pattern: ${filePath}`);
+                this.channel.appendLine(`Syncforge: File excluded by pattern: ${filePath}`);
 
                 return false;
             }
@@ -241,7 +241,7 @@ export class Tracker extends EventEmitter {
             ];
 
             const shouldTrack = Boolean(fileExt) && trackedExtensions.includes(fileExt);
-            this.channel.appendLine(`Anthrax: File ${shouldTrack ? 'will' : 'will not'} be tracked: ${filePath}`)
+            this.channel.appendLine(`Syncforge: File ${shouldTrack ? 'will' : 'will not'} be tracked: ${filePath}`)
 
             return shouldTrack;
 
@@ -256,11 +256,11 @@ export class Tracker extends EventEmitter {
     updateExcludePatterns(newPatterns: string[]) {
         this.excludePatterns = newPatterns;
 
-        this.channel.appendLine(`Anthrax: Updated exclude patterns to: ${newPatterns.join(', ')}`);
+        this.channel.appendLine(`Syncforge: Updated exclude patterns to: ${newPatterns.join(', ')}`);
     }
 
     getChangedFiles(): Change[] {
-        this.channel.appendLine(`Anthrax: Returning tracked changes`);
+        this.channel.appendLine(`Syncforge: Returning tracked changes`);
         
         return Array.from(this.changes.values());
     }
@@ -269,6 +269,6 @@ export class Tracker extends EventEmitter {
         const previousCount = this.changes.size;
 
         this.changes.clear();
-        this.channel.appendLine(`Anthrax: Cleared ${previousCount} tracked changes`);
+        this.channel.appendLine(`Syncforge: Cleared ${previousCount} tracked changes`);
     }
 }

@@ -33,7 +33,7 @@ export class GitHubService {
    * @param description - (Optional) Description of the repository.
    * @returns The clone URL of the created repository or null if creation failed.
    */
-    async createRepo(repoName: string, description: string = 'Anthrax Repository'): Promise<string | null> {
+    async createRepo(repoName: string, description: string = 'Syncforge Repository'): Promise<string | null> {
         this.reponame = repoName;
         try {
             const response = await this.octokit.repos.createForAuthenticatedUser({
@@ -99,6 +99,34 @@ export class GitHubService {
             vscode.window.showErrorMessage(`Error checking repository "${repoName}".`);
 
             return false;
+        }
+    }
+
+    public async enableGitHubPages(owner: string, repo: string, branch: string, path: string): Promise<any> {
+        const url = `https://api.github.com/repos/${owner}/${repo}/pages`;
+        const body = {
+            source: {
+                branch: branch,
+                path: path,
+            },
+        };
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(body),
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response;
+        } catch (error) {
+            this.outputChannel.appendLine(`GitHubService: Error enabling GitHub Pages - ${error}`);
+            throw error;
         }
     }
 }

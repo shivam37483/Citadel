@@ -71,11 +71,11 @@ export class WebsiteGenerator {
             await this.createGitHubWorkflow();
 
             this.outputChannel.appendLine(
-                'anthrax: Statistics website files generated successfully'
+                'syncforge: Statistics website files generated successfully'
             );
         } catch (error) {
             this.outputChannel.appendLine(
-                `anthrax: Error generating website files - ${error}`
+                `syncforge: Error generating website files - ${error}`
             );
             throw error;
         }
@@ -241,11 +241,11 @@ export class WebsiteGenerator {
             await fs.promises.writeFile(workflowPath, workflowContent);
 
             this.outputChannel.appendLine(
-                'anthrax: Created GitHub Actions workflow for website deployment'
+                'syncforge: Created GitHub Actions workflow for website deployment'
             );
         } catch (error) {
             this.outputChannel.appendLine(
-                `anthrax: Error creating GitHub workflow - ${error}`
+                `syncforge: Error creating GitHub workflow - ${error}`
             );
         }
     }
@@ -256,7 +256,7 @@ export class WebsiteGenerator {
     private async createBaseStructure(statsDir: string): Promise<void> {
         // Create package.json
         const packageJson = {
-            name: 'anthrax-stats',
+            name: 'syncforge-stats',
             private: true,
             version: '1.0.0',
             type: 'module',
@@ -311,8 +311,8 @@ export default defineConfig({
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>anthrax - Coding Statistics</title>
-    <meta name="description" content="Track your coding journey with anthrax" />
+    <title>syncforge - Coding Statistics</title>
+    <meta name="description" content="Track your coding journey with syncforge" />
   </head>
   <body>
     <div id="root"></div>
@@ -545,7 +545,7 @@ export async function loadStats(): Promise<CodingStats> {
             try {
                 sourceContent = await fs.promises.readFile(possiblePath, 'utf8');
                 this.outputChannel.appendLine(
-                    `anthrax: Found dashboard component at ${possiblePath}`
+                    `syncforge: Found dashboard component at ${possiblePath}`
                 );
                 break;
             } catch (error) {
@@ -557,13 +557,13 @@ export async function loadStats(): Promise<CodingStats> {
         if (!sourceContent) {
             sourceContent = this.generateDashboardComponent();
             this.outputChannel.appendLine(
-                'anthrax: Created new dashboard component'
+                'syncforge: Created new dashboard component'
             );
         } else {
             // Adapt the component to the new environment
             sourceContent = this.adaptDashboardComponent(sourceContent);
             this.outputChannel.appendLine(
-                'anthrax: Adapted existing dashboard component'
+                'syncforge: Adapted existing dashboard component'
             );
         }
 
@@ -698,7 +698,7 @@ const CodingStatsDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     // Check stored preference
-    const stored = localStorage.getItem('anthrax-dashboard-theme');
+    const stored = localStorage.getItem('syncforge-dashboard-theme');
     if (stored) {
       return stored === 'dark';
     }
@@ -710,7 +710,7 @@ const CodingStatsDashboard = () => {
   useEffect(() => {
     // Save theme preference
     localStorage.setItem(
-      'anthrax-dashboard-theme',
+      'syncforge-dashboard-theme',
       isDarkMode ? 'dark' : 'light'
     );
     // Apply theme classes

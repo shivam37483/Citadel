@@ -50,10 +50,10 @@ export class ProjectContext {
             await this.loadGitHistory();
             await this.updateProjectStats();
 
-            this.channel.appendLine('Anthrax: Loaded Project Context');
+            this.channel.appendLine('Syncforge: Loaded Project Context');
 
         } catch (error) {
-            this.channel.appendLine(`Anthrax: Error loading context: ${error}`);
+            this.channel.appendLine(`Syncforge: Error loading context: ${error}`);
         }
     }
 
@@ -126,7 +126,7 @@ export class ProjectContext {
                     }
                 }
             } catch (error) {
-                this.channel.appendLine(`Anthrax: Error getting git branch: ${error}`);
+                this.channel.appendLine(`Syncforge: Error getting git branch: ${error}`);
             }
 
 
@@ -140,7 +140,7 @@ export class ProjectContext {
             };
 
         } catch (error) {
-            this.channel.appendLine(`Anthrax: Error updating project stats: ${error}`);
+            this.channel.appendLine(`Syncforge: Error updating project stats: ${error}`);
         }
     }
 
@@ -211,7 +211,7 @@ export class ProjectContext {
             await this.loadGitHistory(); // Refresh Git history
             await this.updateProjectStats();
         } catch (error) {
-            this.channel.appendLine(`Anthrax: Error adding commit: ${error}`);
+            this.channel.appendLine(`Syncforge: Error adding commit: ${error}`);
         }
     }
 }

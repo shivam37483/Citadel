@@ -1,8 +1,8 @@
 {
-    "name": "anthrax",
-    "displayName": "Anthrax",
-    "description": "Track your coding journey effortlessly with Anthrax",
-    "version": "4.1.20",
+    "name": "syncforge",
+    "displayName": "Syncforge",
+    "description": "A VS Code extension for tracking and analyzing coding activity with Git and GitHub integration.",
+    "version": "1.0.0",
     "publisher": "HeliosX",
     "repository": {
         "type": "GitHub",
@@ -33,77 +33,77 @@
     ],
     "activationEvents": [
         "onStartupFinished",
-        "onCommand:anthrax.login",
-        "onCommand:anthrax.startTracking",
-        "onCommand:anthrax.stopTracking",
-        "onCommand:anthrax.logout",
-        "onCommand:anthrax.test"
+        "onCommand:syncforge.login",
+        "onCommand:syncforge.startTracking",
+        "onCommand:syncforge.stopTracking",
+        "onCommand:syncforge.logout",
+        "onCommand:syncforge.test"
     ],
     "main": "./dest/extension.js",
-    "icon": "assets/image.jfif",
+    "icon": "assets/img.jpg",
     "contributes": {
         "commands": [
             {
-                "command": "anthrax.startTracking",
-                "title": "Anthrax: Start Tracking",
+                "command": "syncforge.startTracking",
+                "title": "syncforge: Start Tracking",
                 "enablement": "workspaceFolderCount != 0"
             },
             {
-                "command": "anthrax.stopTracking",
-                "title": "Anthrax: Stop Tracking",
+                "command": "syncforge.stopTracking",
+                "title": "syncforge: Stop Tracking",
                 "enablement": "workspaceFolderCount != 0"
             },
             {
-                "command": "anthrax.login",
-                "title": "Anthrax: Login to GitHub"
+                "command": "syncforge.login",
+                "title": "syncforge: Login to GitHub"
             },
             {
-                "command": "anthrax.logout",
-                "title": "Anthrax: Logout from GitHub"
+                "command": "syncforge.logout",
+                "title": "syncforge: Logout from GitHub"
             },
             {
-                "command": "anthrax.showGitGuide",
-                "title": "Anthrax: Show Git Installation Guide"
+                "command": "syncforge.showGitGuide",
+                "title": "syncforge: Show Git Installation Guide"
             },
             {
-                "command": "anthrax.openFolder",
-                "title": "Anthrax: Open Folder",
+                "command": "syncforge.openFolder",
+                "title": "syncforge: Open Folder",
                 "enablement": "workspaceFolderCount == 0"
             },
             {
-                "command": "anthrax.test",
-                "title": "Anthrax: Test Extension Loading"
+                "command": "syncforge.test",
+                "title": "syncforge: Test Extension Loading"
             },
             {
-                "command": "anthrax.generateWebsite",
-                "title": "Anthrax: Generate Statistics Website",
+                "command": "syncforge.generateWebsite",
+                "title": "syncforge: Generate Statistics Website",
                 "enablement": "workspaceFolderCount != 0"
             },
             {
-                "command": "anthrax.clearState",
-                "title": "Anthrax: Clear global state"
+                "command": "syncforge.clearState",
+                "title": "syncforge: Clear global state"
             }
         ],
         "configuration": {
             "type": "object",
-            "title": "Anthrax Configuration",
+            "title": "syncforge Configuration",
             "properties": {
-                "anthrax.repoName": {
+                "syncforge.repoName": {
                     "type": "string",
                     "default": "code-tracking",
                     "description": "Name of the GitHub repository to store tracking logs."
                 },
-                "anthrax.commitFrequency": {
+                "syncforge.commitFrequency": {
                     "type": "number",
                     "default": 30,
                     "description": "How often (in minutes) to commit your coding history."
                 },
-                "anthrax.confirmBeforeCommit": {
+                "syncforge.confirmBeforeCommit": {
                     "type": "boolean",
                     "default": true,
                     "description": "Show a confirmation dialog before each automatic commit."
                 },
-                "anthrax.exclude": {
+                "syncforge.exclude": {
                     "type": "array",
                     "items": {
                         "type": "string"

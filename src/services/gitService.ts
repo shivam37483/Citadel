@@ -54,7 +54,7 @@ interface FileTypeStats {
     percentage: number,
 }
 
-interface AnthraxStats {
+interface syncforgeStats {
     totalTime: number;
     filesModified: number;
     totalCommits: number;
@@ -101,13 +101,13 @@ export class GitService extends EventEmitter {
 
     private processQueue: Promise<any> = Promise.resolve();
 
-    private githubServ;
+    private githubService!: GitHubService;
 
 
     private setupDefaultErrorHandler() {
         if (this.listenerCount('error') == 0) {             // Returns the number of listeners listening for the event named eventName
             this.on('error', (error: Error) => {
-                this.outputChannel.appendLine(`Anthrax: Unhandled Git error - ${error.message}`);
+                this.outputChannel.appendLine(`Syncforge: Unhandled Git error - ${error.message}`);
             });
         }
     }
@@ -121,23 +121,20 @@ export class GitService extends EventEmitter {
 
         // Create Base tracking Directory in User's home. 
         const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-        this.baseTrackingDir = path.join(homeDir, '.anthrax');
+        this.baseTrackingDir = path.join(homeDir, '.syncforge');
 
 
         // Ensuring base Directory exists
         if (!fs.existsSync(this.baseTrackingDir)) {
             fs.mkdirSync(this.baseTrackingDir, { recursive: true });
         }
-
-        this.githubServ = new GitHubService(outputChannel);
-
     }
 
     // Type - safe Event Emmiter methods. It extends keyof GitServiceEvents, meaning E must be a key of the GitServiceEvents type. This ensures that event can only be a valid event name defined in GitServiceEvents.
     // listener: The callback function that will be executed when the event occurs. GitServiceEvents[E] ensures that the listener matches the expected function signature for the given event.
     public on<E extends keyof GitServiceEvents>(event: E, listener: GitServiceEvents[E]): this {
         if (event === 'error' && this.listenerCount('error') >= GitService.MAX_LISTENERS - 1) {
-            this.outputChannel.appendLine('Anthrax: Warning - Too many error listeners');
+            this.outputChannel.appendLine('Syncforge: Warning - Too many error listeners');
             return this;
         }
 
@@ -200,14 +197,14 @@ export class GitService extends EventEmitter {
         try {
             if (this.listenerCount(event) === 0 && event != 'error') {
                 // IF no listeners for non-error events, log it
-                this.outputChannel.appendLine(`Anthrax: No listerners for event - ${String(event)}`);
+                this.outputChannel.appendLine(`Syncforge: No listerners for event - ${String(event)}`);
 
                 return false;
             }
 
             return super.emit(event, ...args);
         } catch (error) {
-            this.outputChannel.appendLine(`Anthrax: Error emitting event ${String(event)}`);
+            this.outputChannel.appendLine(`Syncforge: Error emitting event ${String(event)}`);
 
             this.emit('error', new Error(`Event emmsion failed ${error}`));
 
@@ -238,7 +235,7 @@ export class GitService extends EventEmitter {
                 }
             } catch (error: any) {
                 this.outputChannel.appendLine(
-                    `Anthrax: Linux permissions check failed - ${error.message}`
+                    `syncforge: Linux permissions check failed - ${error.message}`
                 );
                 throw new Error(
                     'Git permissions issue detected. Please check your Git installation and permissions.'
@@ -266,7 +263,7 @@ export class GitService extends EventEmitter {
             }
 
             this.outputChannel.appendLine(
-                `Anthrax: Git version ${version} verified`
+                `syncforge: Git version ${version} verified`
             );
         } catch (error: any) {
             throw new Error(`Git environment check failed: ${error.message}`);
@@ -285,7 +282,7 @@ export class GitService extends EventEmitter {
                 for (const basePath of paths) {
                     const gitExePath = path.join(basePath, 'git.exe').replace(/\\/g, '/');
                     if (fs.existsSync(gitExePath)) {
-                        this.outputChannel.appendLine(`Anthrax: Found Git in PATH at ${gitExePath}`);
+                        this.outputChannel.appendLine(`Syncforge: Found Git in PATH at ${gitExePath}`);
 
                         return 'git';
                     }
@@ -300,7 +297,7 @@ export class GitService extends EventEmitter {
 
                 for (const gitPath of commonPaths) {
                     if (fs.existsSync(gitPath)) {
-                        this.outputChannel.appendLine(`Anthrax: Found Git at ${gitPath}`);
+                        this.outputChannel.appendLine(`Syncforge: Found Git at ${gitPath}`);
                         return gitPath;
                     }
                 }
@@ -313,13 +310,13 @@ export class GitService extends EventEmitter {
                         .replace(/\\/g, '/');
 
                     if (gitPathFromWhere && fs.existsSync(gitPathFromWhere)) {
-                        this.outputChannel.appendLine(`Anthrax: Found Git using 'where' command at ${gitPathFromWhere}`);
+                        this.outputChannel.appendLine(`Syncforge: Found Git using 'where' command at ${gitPathFromWhere}`);
 
                         return gitPathFromWhere;
                     }
 
                 } catch (error) {
-                    this.outputChannel.appendLine('Anthrax: Git not found in PATH');
+                    this.outputChannel.appendLine('Syncforge: Git not found in PATH');
                 }
 
                 // Final fallback
@@ -335,7 +332,7 @@ export class GitService extends EventEmitter {
                             const gitPath = execSync(method, { encoding: 'utf8' }).trim();
                             if (gitPath && fs.existsSync(gitPath)) {
                                 this.outputChannel.appendLine(
-                                    `Anthrax: Found Git using '${method}' at ${gitPath}`
+                                    `syncforge: Found Git using '${method}' at ${gitPath}`
                                 );
                                 return gitPath;
                             }
@@ -354,7 +351,7 @@ export class GitService extends EventEmitter {
                     for (const gitPath of commonPaths) {
                         if (fs.existsSync(gitPath)) {
                             this.outputChannel.appendLine(
-                                `Anthrax: Found Git at ${gitPath}`
+                                `syncforge: Found Git at ${gitPath}`
                             );
                             return gitPath;
                         }
@@ -368,7 +365,7 @@ export class GitService extends EventEmitter {
             }
         } catch (error) {
             this.outputChannel.appendLine(
-                `Anthrax: Error finding Git executable - ${error}`
+                `syncforge: Error finding Git executable - ${error}`
             );
             return 'git';
         }
@@ -412,12 +409,12 @@ export class GitService extends EventEmitter {
             this.git = simpleGit(options);
             this.repoPath = this.currentTrackingDir;
 
-            this.outputChannel.appendLine(`Anthrax: Tracking directory initialized at ${this.currentTrackingDir}`);
+            this.outputChannel.appendLine(`Syncforge: Tracking directory initialized at ${this.currentTrackingDir}`);
 
         } catch (error: unknown) {
             const errorMessage =
                 error instanceof Error ? error.message : String(error);
-            this.outputChannel.appendLine(`Anthrax: Tracking initialization failed - ${errorMessage}`);
+            this.outputChannel.appendLine(`Syncforge: Tracking initialization failed - ${errorMessage}`);
 
             throw error;
         }
@@ -428,7 +425,7 @@ export class GitService extends EventEmitter {
         const workspaceFolders = vscode.workspace.workspaceFolders;
 
         if (!workspaceFolders || workspaceFolders.length === 0) {
-            this.outputChannel.appendLine('Anthrax: No workspace folder is open');
+            this.outputChannel.appendLine('Syncforge: No workspace folder is open');
             return false;
         }
 
@@ -438,7 +435,7 @@ export class GitService extends EventEmitter {
             return true;
         } catch (error) {
             this.outputChannel.appendLine(
-                `Anthrax: Git validation failed - ${error}`
+                `syncforge: Git validation failed - ${error}`
             );
             return false;
         }
@@ -450,13 +447,13 @@ export class GitService extends EventEmitter {
             if (!this.currentTrackingDir) {
                 const homeDir = process.env.HOME || process.env.USERPROFILE;
                 if (!homeDir) {
-                    throw new Error('Unable to determine home directory for Anthrax');
+                    throw new Error('Unable to determine home directory for syncforge');
                 }
 
                 // Create a base tracking directory even without workspace
                 this.currentTrackingDir = path.join(
                     homeDir,
-                    '.anthrax',
+                    '.syncforge',
                     'tracking',
                     'default'
                 );
@@ -469,7 +466,7 @@ export class GitService extends EventEmitter {
                         .replace(/[/+=]/g, '_');
                     this.currentTrackingDir = path.join(
                         homeDir,
-                        '.anthrax',
+                        '.syncforge',
                         'tracking',
                         workspaceId
                     );
@@ -479,11 +476,11 @@ export class GitService extends EventEmitter {
                     await fs.promises.mkdir(this.currentTrackingDir, { recursive: true });
                 }
 
-                this.outputChannel.appendLine(`anthrax: Created tracking directory at ${this.currentTrackingDir}`);
+                this.outputChannel.appendLine(`Syncforge: Created tracking directory at ${this.currentTrackingDir}`);
             }
 
         } catch (error: any) {
-            this.outputChannel.appendLine(`anthrax: Error creating tracking directory - ${error.message}`);
+            this.outputChannel.appendLine(`Syncforge: Error creating tracking directory - ${error.message}`);
 
             throw error;
         }
@@ -509,17 +506,17 @@ export class GitService extends EventEmitter {
                     '--force',
                 ]);
                 this.outputChannel.appendLine(
-                    `Anthrax: Set upstream tracking for ${currentBranch}`
+                    `syncforge: Set upstream tracking for ${currentBranch}`
                 );
             } catch (error) {
                 this.outputChannel.appendLine(
-                    `Anthrax: Failed to set upstream - ${error}`
+                    `syncforge: Failed to set upstream - ${error}`
                 );
                 throw error;
             }
         } catch (error) {
             this.outputChannel.appendLine(
-                `Anthrax: Error in setupRemoteTracking - ${error}`
+                `syncforge: Error in setupRemoteTracking - ${error}`
             );
             throw error;
         }
@@ -547,7 +544,7 @@ export class GitService extends EventEmitter {
             );
         } catch (error) {
             this.outputChannel.appendLine(
-                'Anthrax: Failed to update tracking metadata'
+                'syncforge: Failed to update tracking metadata'
             );
         }
     }
@@ -564,7 +561,7 @@ export class GitService extends EventEmitter {
             )
             .catch(
                 (error) => {
-                    this.outputChannel.appendLine(`Anthrax: Operation failed: ${error}`);
+                    this.outputChannel.appendLine(`Syncforge: Operation failed: ${error}`);
                     throw error;
                 }
             );
@@ -576,10 +573,10 @@ export class GitService extends EventEmitter {
     private async setupGitIgnore(): Promise<void> {
         const gitignorePath = path.join(this.currentTrackingDir, '.gitignore');
         const gitignoreContent = `
-# Anthrax - Only track specific directories
+# syncforge - Only track specific directories
 /*
 
-# Allow Anthrax directories
+# Allow syncforge directories
 !/stats/
 !/changes/
 !/.gitignore
@@ -595,9 +592,9 @@ node_modules/`;
 
         await fs.promises.writeFile(gitignorePath, gitignoreContent);
         await this.git.add('.gitignore');
-        await this.git.commit('Anthrax: Added gitignore to protect workspace');
+        await this.git.commit('syncforge: Added gitignore to protect workspace');
 
-        this.outputChannel.appendLine(`Anthrax: Gitignore added successfully}`);
+        this.outputChannel.appendLine(`Syncforge: Gitignore added successfully}`);
     }
 
 
@@ -617,7 +614,7 @@ node_modules/`;
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Anthrax Statistics</title>
+        <title>syncforge Statistics</title>
       </head>
       <body>
         <div id="root"></div>
@@ -632,12 +629,12 @@ node_modules/`;
                 // Create empty dashboard.js
                 await fs.promises.writeFile(
                     path.join(this.statsDir, 'dashboard.js'),
-                    '// Anthrax Dashboard initialization'
+                    '// syncforge Dashboard initialization'
                 );
             }
 
             // Initialize empty stats data
-            const initialStats: AnthraxStats = {
+            const initialStats: syncforgeStats = {
                 totalTime: 0,
                 filesModified: 0,
                 totalCommits: 0,
@@ -658,7 +655,7 @@ node_modules/`;
             // Add stats directory to Git only if it's a new user
             if (isNewUser) {
                 await this.git.add(path.join(this.statsDir, '*'));
-                await this.git.commit('Anthrax: Initialize statistics tracking');
+                await this.git.commit('syncforge: Initialize statistics tracking');
 
                 // Push changes only if we have a remote set up
                 try {
@@ -666,77 +663,108 @@ node_modules/`;
                     await this.git.push('origin', currentBranch);
                 } catch (pushError) {
                     // Log push error but don't fail initialization
-                    this.outputChannel.appendLine(`Anthrax: Warning - Could not push initial stats: ${pushError}`);
+                    this.outputChannel.appendLine(`Syncforge: Warning - Could not push initial stats: ${pushError}`);
                 }
             }
 
             this.hasInitializedStats = true;
-            this.outputChannel.appendLine('Anthrax: Statistics tracking initialized successfully');
+            this.outputChannel.appendLine('Syncforge: Statistics tracking initialized successfully');
 
         } catch (error) {
-            this.outputChannel.appendLine(`Anthrax: Failed to initialize statistics - ${error}`);
+            this.outputChannel.appendLine(`Syncforge: Failed to initialize statistics - ${error}`);
             // Don't throw the error - allow the app to continue without stats
             this.hasInitializedStats = false;
         }
     }
 
-    private async setupGitHubWorkflow(): Promise<void> {
-        try {
-            const workflowsDir = path.join(this.currentTrackingDir, '.github', 'workflows');
-            await fs.promises.mkdir(workflowsDir, { recursive: true });
+//     private async setupGitHubWorkflow(): Promise<void> {
+//         try {
+//             const workflowsDir = path.join(this.currentTrackingDir, '.github', 'workflows');
+//             await fs.promises.mkdir(workflowsDir, { recursive: true });
+    
+//             const workflowPath = path.join(workflowsDir, 'build-and-deploy.yml');
+//             const workflowContent = `name: Build and Deploy Stats
+// on:
+//   push:
+//     branches:
+//       - main
+//     paths:
+//       - "stats/**"
+// jobs:
+//   build-and-deploy:
+//     runs-on: ubuntu-latest
+//     permissions:
+//       pages: write
+//       id-token: write
+//       contents: write
+//     environment:
+//       name: github-pages
+//     steps:
+//       - name: Checkout Repository
+//         uses: actions/checkout@v4
+//       - name: Set up Node.js
+//         uses: actions/setup-node@v3
+//         with:
+//           node-version: "18"
+//       - name: Install Dependencies
+//         run: cd stats && npm install
+//       - name: Build Website
+//         run: cd stats && npm run build
+//       - name: Setup Pages
+//         uses: actions/configure-pages@v4
+//       - name: Upload artifact
+//         uses: actions/upload-pages-artifact@v3
+//         with:
+//           path: stats/dist
+//       - name: Deploy to GitHub Pages
+//         id: deployment
+//         uses: actions/deploy-pages@v4`;
+    
+//             await fs.promises.writeFile(workflowPath, workflowContent);
+//             await this.git.add(workflowPath);
+//             await this.git.commit('Add GitHub Actions workflow');
+//             await this.git.push('origin', 'main');
+//             this.outputChannel.appendLine('GitHub Actions workflow setup complete');
+    
+//             // Enable GitHub Pages programmatically
+//             const token = this.githubService.token; // Ensure this method exists in your GitHubService
+//             if (!token) {
+//                 throw new Error('GitHub token is not set');
+//             }
+//             const owner = 'your-username'; // Replace with your repository owner
+//             const repo = 'your-repo-name'; // Replace with your repository name
+//             const branch = 'main';
+//             const sourcePath = '/stats/dist'; // Adjust if your build output directory differs
+    
+//             const url = `https://api.github.com/repos/${owner}/${repo}/pages`;
+//             const response = await fetch(url, {
+//                 method: 'POST',
+//                 headers: {
+//                     'Authorization': `Bearer ${token}`,
+//                     'Accept': 'application/vnd.github.v3+json',
+//                     'Content-Type': 'application/json',
+//                 },
+//                 body: JSON.stringify({
+//                     source: {
+//                         branch: branch,
+//                         path: sourcePath,
+//                     },
+//                 }),
+//             });
+    
+//             if (!response.ok) {
+//                 throw new Error(`Failed to enable GitHub Pages: ${response.statusText}`);
+//             }
+//             this.outputChannel.appendLine('GitHub Pages enabled successfully');
+//         } catch (error) {
+//             this.outputChannel.appendLine(`Error setting up GitHub Actions workflow - ${error}`);
+//             this.outputChannel.appendLine('Continuing setup despite GitHub Actions failure');
+//         }
+//     }
 
-            const workflowPath = path.join(workflowsDir, 'build-and-deploy.yml');
-            const workflowContent = `name: Build and Deploy Stats
-on:
-  push:
-    branches:
-      - main
-    paths:
-      - "stats/**"
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-      contents: write
-    environment:
-      name: github-pages
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: "18"
-      - name: Install Dependencies
-        run: cd stats && npm install
-      - name: Build Website
-        run: cd stats && npm run build
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: stats/dist
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4`;
+    public async initializeRepo(remoteUrl: string, github: GitHubService): Promise<void> {
+        this.githubService = github;
 
-            await fs.promises.writeFile(workflowPath, workflowContent);
-            await this.git.add(workflowPath);
-            await this.git.commit('Anthrax: Add GitHub Actions workflow');
-            await this.git.push('origin', 'main');
-            this.outputChannel.appendLine('Anthrax: GitHub Actions workflow setup complete');
-
-        } catch (error) {
-            this.outputChannel.appendLine(`Anthrax: Error setting up GitHub Actions workflow - ${error}`);
-            // Log but don’t throw, allowing setup to continue
-            this.outputChannel.appendLine('Anthrax: Continuing setup despite GitHub Actions failure');
-        }
-    }
-
-    public async initializeRepo(remoteUrl: string): Promise<void> {
         return this.enqueueOperation(async () => {
             try {
                 if (!(await this.validateWorkspace())) {
@@ -754,18 +782,18 @@ jobs:
                     await this.git.add('changes/.gitkeep');
                 }
 
-                await this.git.commit('Anthrax: Initial commit');
+                await this.git.commit('syncforge: Initial commit');
                 await this.git.push(['--set-upstream', 'origin', 'main']);
-                this.outputChannel.appendLine('Anthrax: Initial push successful');
+                this.outputChannel.appendLine('Syncforge: Initial push successful');
 
                 // Additional setup after remote is established
                 await this.initializeStatistics(true);
-                await this.setupGitHubWorkflow(); // Now optional due to error handling
+                // await this.setupGitHubWorkflow(); // Now optional due to error handling
 
-                this.outputChannel.appendLine('Anthrax: Repo initialization complete');
+                this.outputChannel.appendLine('Syncforge: Repo initialization complete');
 
             } catch (error: any) {
-                this.outputChannel.appendLine(`Anthrax: Failed to initialize repository - ${error.message}`);
+                this.outputChannel.appendLine(`Syncforge: Failed to initialize repository - ${error.message}`);
                 throw error;
             }
         });
@@ -786,10 +814,10 @@ jobs:
 
 
                 this.git = simpleGit(options);
-                this.outputChannel.appendLine("Anthrax: Git Initialized successfully!");
+                this.outputChannel.appendLine("syncforge: Git Initialized successfully!");
             }
         } catch (error: any) {
-            this.outputChannel.appendLine(`Anthrax: Failed to initialize Git - ${error.message}`);
+            this.outputChannel.appendLine(`Syncforge: Failed to initialize Git - ${error.message}`);
 
             throw error;
         }
@@ -800,215 +828,220 @@ jobs:
         try {
             // Ensure Git is initialized
             await this.ensureGitInitialized();
-            this.outputChannel.appendLine('Anthrax: Git initialization confirmed');
+            this.outputChannel.appendLine('Syncforge: Git initialization confirmed');
 
             const isRepo = await this.git.checkIsRepo();
             if (!isRepo) {
                 await this.git.init();
-                this.outputChannel.appendLine('Anthrax: Initialized new Git repository');
-                await this.git.addConfig('user.name', 'Anthrax', false, 'local');
+                this.outputChannel.appendLine('Syncforge: Initialized new Git repository');
+                await this.git.addConfig('user.name', 'syncforge', false, 'local');
                 await this.git.addConfig('user.email', 'vatshivam49888@gmail.com', false, 'local');
                 await this.git.checkoutLocalBranch('main');
-                this.outputChannel.appendLine('Anthrax: Created main branch');
+                this.outputChannel.appendLine('Syncforge: Created main branch');
             } else {
-                this.outputChannel.appendLine('Anthrax: Existing Git repository detected');
+                this.outputChannel.appendLine('Syncforge: Existing Git repository detected');
             }
 
             // Check and set remote
             const remotes = await this.git.getRemotes();
-            this.outputChannel.appendLine(`Anthrax: Current remotes: ${JSON.stringify(remotes)}`);
+            this.outputChannel.appendLine(`Syncforge: Current remotes: ${JSON.stringify(remotes)}`);
             const hasOrigin = remotes.some((remote) => remote.name === 'origin');
 
             if (!hasOrigin) {
                 await this.git.addRemote('origin', remoteUrl);
-                this.outputChannel.appendLine(`Anthrax: Added remote origin ${remoteUrl.replace(/x-access-token:[^@]+@/, 'x-access-token:[hidden]@')}`);
+                this.outputChannel.appendLine(`Syncforge: Added remote origin ${remoteUrl.replace(/x-access-token:[^@]+@/, 'x-access-token:[hidden]@')}`);
             } else {
                 const currentRemoteResult = await this.git.getConfig('remote.origin.url');
                 const currentRemote = currentRemoteResult.value;
-                this.outputChannel.appendLine(`Anthrax: Current origin URL: ${currentRemote || 'none'}`);
+                
+                // this.outputChannel.appendLine(`Syncforge: Current origin URL: ${currentRemote || 'none'}`);
+
                 if (currentRemote !== remoteUrl && currentRemote !== null) {
                     await this.git.removeRemote('origin');
-                    this.outputChannel.appendLine('Anthrax: Removed existing origin');
+                    this.outputChannel.appendLine('Syncforge: Removed existing origin');
                     await this.git.addRemote('origin', remoteUrl);
-                    this.outputChannel.appendLine(`Anthrax: Updated remote origin to ${remoteUrl.replace(/x-access-token:[^@]+@/, 'x-access-token:[hidden]@')}`);
+                    this.outputChannel.appendLine(`Syncforge: Updated remote origin to ${remoteUrl.replace(/x-access-token:[^@]+@/, 'x-access-token:[hidden]@')}`);
                 } else {
-                    this.outputChannel.appendLine('Anthrax: Origin already matches expected URL or is unset');
+                    this.outputChannel.appendLine('Syncforge: Origin already matches expected URL or is unset');
                 }
             }
 
             // Sync with remote
             try {
                 await this.git.fetch('origin', 'main');
-                this.outputChannel.appendLine('Anthrax: Fetched origin/main');
+                this.outputChannel.appendLine('Syncforge: Fetched origin/main');
                 const status = await this.git.status();
                 if (status.current === 'main') {
                     await this.git.reset(['--hard', 'origin/main']);
-                    this.outputChannel.appendLine('Anthrax: Reset local main to match origin/main');
+                    this.outputChannel.appendLine('Syncforge: Reset local main to match origin/main');
                 }
             } catch (fetchError: any) {
-                this.outputChannel.appendLine(`Anthrax: Fetch failed (likely no remote branch yet) - ${fetchError.message}`);
+                this.outputChannel.appendLine(`Syncforge: Fetch failed (likely no remote branch yet) - ${fetchError.message}`);
                 // If fetch fails (e.g., remote branch doesn’t exist), proceed without syncing
             }
 
             // Verify remote setup
             const verifiedRemotes = await this.git.remote(['-v']);
-            this.outputChannel.appendLine(`Anthrax: Verified remotes: ${verifiedRemotes || 'none'}`);
+            this.outputChannel.appendLine(`Syncforge: Verified remotes: ${verifiedRemotes || 'none'}`);
             if (typeof verifiedRemotes === 'string' && !verifiedRemotes.includes('origin')) {
                 throw new Error('Failed to verify origin remote after setup');
             } else if (!verifiedRemotes) {
                 throw new Error('No remotes returned from git remote -v');
             }
 
-            this.outputChannel.appendLine('Anthrax: Repo setup complete (no push attempted)');
+            this.outputChannel.appendLine('Syncforge: Repo setup complete (no push attempted)');
 
         } catch (error: any) {
-            this.outputChannel.appendLine(`Anthrax: Error ensuring repo setup - ${error.message}`);
-            this.outputChannel.appendLine(`Anthrax: Stack trace - ${error.stack || 'No stack available'}`);
+            this.outputChannel.appendLine(`Syncforge: Error ensuring repo setup - ${error.message}`);
+            this.outputChannel.appendLine(`Syncforge: Stack trace - ${error.stack || 'No stack available'}`);
             throw error;
         }
     }
 
     private async updateStatsData(stats: any): Promise<void> {
         try {
-            const statsDir = path.join(this.currentTrackingDir, 'stats');
-
-            const dataDir = path.join(statsDir, 'data');
-            await fs.promises.mkdir(dataDir, { recursive: true });
-
-
-            // Update stats data in Data Dir
-            const statsDataPath = path.join(dataDir, 'stats.json');
-            await fs.promises.writeFile(statsDataPath, JSON.stringify(stats, null, 2));
-
-
-            // Create package.json if it doesnt exist
-            const packagePath = path.join(statsDir, 'package.json');
-            if (!fs.existsSync(packagePath)) {
-                const packageJson = {
-                    name: 'anthrax-stats',
-                    private: true,
-                    version: '0.0.0',
-                    type: 'module',
-                    scripts: {
-                        dev: 'vite',
-                        build: 'vite build',
-                        preview: 'vite preview',
-                    },
-                    dependencies: {
-                        '@types/react': '^18.2.55',
-                        '@types/react-dom': '^18.2.19',
-                        '@vitejs/plugin-react': '^4.2.1',
-                        react: '^18.2.0',
-                        'react-dom': '^18.2.0',
-                        recharts: '^2.12.0',
-                        vite: '^5.1.0',
-                    },
-                };
-
-                await fs.promises.writeFile(packagePath, JSON.stringify(packageJson, null, 2));
-            }
-
-
-            // Create vite.config.js if it doesnt exist
-            const vitConfigPath = path.join(statsDir, 'vite.config.js');
-            if (!fs.existsSync(vitConfigPath)) {
-                const viteConfig = `
-  import { defineConfig } from 'vite'
-  import react from '@vitejs/plugin-react'
-  
-  export default defineConfig({
-    plugins: [react()],
-    base: '/code-tracking/stats/',
-  })`;
-
-                await fs.promises.writeFile(vitConfigPath, viteConfig);
-            }
-
-
-            // Create index.html if it doesn't exist
-            const indexPath = path.join(statsDir, 'index.html');
-            if (!fs.existsSync(indexPath)) {
-                const indexHtml = `
-  <!DOCTYPE html>
-  <html lang="en">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>Anthrax Statistics</title>
-    </head>
-    <body>
-      <div id="root"></div>
-      <script type="module" src="/src/main.tsx"></script>
-    </body>
-  </html>`;
-
-                await fs.promises.writeFile(indexPath, indexHtml);
-            }
-
-
-            // Create main.tsx if it doesn't exist
-            const srcDir = path.join(statsDir, 'src');
-            await fs.promises.mkdir(srcDir, { recursive: true });
-
-            const mainPath = path.join(srcDir, 'main.tsx');
-            if (!fs.existsSync(mainPath)) {
-                const mainTsx = `
-  import React from 'react'
-  import ReactDOM from 'react-dom/client'
-  import CodingStatsDashboard from './components/CodingStatsDashboard'
-  import './index.css'
-  
-  ReactDOM.createRoot(document.getElementById('root')!).render(
-    <React.StrictMode>
-      <CodingStatsDashboard />
-    </React.StrictMode>,
-  )`;
-
-                await fs.promises.writeFile(mainPath, mainTsx);
-            }
-
-            // Create basic CSS
-            const cssPath = path.join(srcDir, 'index.css');
-            if (!fs.existsSync(cssPath)) {
-                const css = `
-  @tailwind base;
-  @tailwind components;
-  @tailwind utilities;`;
-
-                await fs.promises.writeFile(cssPath, css);
-            }
-
-
-            const componentsDir = path.join(srcDir, 'components');
-            await fs.promises.mkdir(componentsDir, { recursive: true });
-
-            const uiDir = path.join(componentsDir, 'ui');
-            await fs.promises.mkdir(uiDir, { recursive: true });
-
-
-            // Add to git
-            await this.git.add(statsDir);
-            await this.git.commit('Anthrax: Update Statistics data and Website');
-
-            const currentBranch = (await this.git.branch()).current;
-            await this.git.push('origin', currentBranch);
-
-            this.outputChannel.appendLine('Anthrax: Statistics data updated and pushed');
-
-
+          const statsDir = path.join(this.currentTrackingDir, 'stats');
+          const dataDir = path.join(statsDir, 'data');
+          await fs.promises.mkdir(dataDir, { recursive: true });
+      
+          // Update stats data in Data Dir
+          const statsDataPath = path.join(dataDir, 'stats.json');
+          await fs.promises.writeFile(statsDataPath, JSON.stringify(stats, null, 2));
+      
+          // Create package.json if it doesn't exist
+          const packagePath = path.join(statsDir, 'package.json');
+          if (!fs.existsSync(packagePath)) {
+            const packageJson = {
+              name: 'syncforge-stats',
+              private: true,
+              version: '0.0.0',
+              type: 'module',
+              scripts: {
+                dev: 'vite',
+                build: 'vite build',
+                preview: 'vite preview',
+              },
+              dependencies: {
+                '@types/react': '^18.2.55',
+                '@types/react-dom': '^18.2.19',
+                '@vitejs/plugin-react': '^4.2.1',
+                react: '^18.2.0',
+                'react-dom': '^18.2.0',
+                recharts: '^2.12.0',
+                vite: '^5.1.0',
+              },
+            };
+            await fs.promises.writeFile(packagePath, JSON.stringify(packageJson, null, 2));
+          }
+      
+          // Create vite.config.js if it doesn't exist
+          const vitConfigPath = path.join(statsDir, 'vite.config.js');
+          if (!fs.existsSync(vitConfigPath)) {
+            const viteConfig = `
+      import { defineConfig } from 'vite'
+      import react from '@vitejs/plugin-react'
+      
+      export default defineConfig({
+        plugins: [react()],
+        base: '/code-tracking/stats/',
+      })`;
+            await fs.promises.writeFile(vitConfigPath, viteConfig);
+          }
+      
+          // Create index.html if it doesn't exist
+          const indexPath = path.join(statsDir, 'index.html');
+          if (!fs.existsSync(indexPath)) {
+            const indexHtml = `
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>syncforge Statistics</title>
+        </head>
+        <body>
+          <div id="root"></div>
+          <script type="module" src="/src/main.tsx"></script>
+        </body>
+      </html>`;
+            await fs.promises.writeFile(indexPath, indexHtml);
+          }
+      
+          // Create main.tsx if it doesn't exist
+          const srcDir = path.join(statsDir, 'src');
+          await fs.promises.mkdir(srcDir, { recursive: true });
+      
+          const mainPath = path.join(srcDir, 'main.tsx');
+          if (!fs.existsSync(mainPath)) {
+            const mainTsx = `
+      import React from 'react'
+      import ReactDOM from 'react-dom/client'
+      import CodingStatsDashboard from './components/CodingStatsDashboard'
+      import './index.css'
+      
+      ReactDOM.createRoot(document.getElementById('root')!).render(
+        <React.StrictMode>
+          <CodingStatsDashboard />
+        </React.StrictMode>,
+      )`;
+            await fs.promises.writeFile(mainPath, mainTsx);
+          }
+      
+          // Create basic CSS
+          const cssPath = path.join(srcDir, 'index.css');
+          if (!fs.existsSync(cssPath)) {
+            const css = `
+      @tailwind base;
+      @tailwind components;
+      @tailwind utilities;`;
+            await fs.promises.writeFile(cssPath, css);
+          }
+      
+          // Create components directory and CodingStatsDashboard.tsx
+          const componentsDir = path.join(srcDir, 'components');
+          await fs.promises.mkdir(componentsDir, { recursive: true });
+      
+          const dashboardPath = path.join(componentsDir, 'CodingStatsDashboard.tsx');
+          if (!fs.existsSync(dashboardPath)) {
+            const dashboardContent = `
+      import React from 'react';
+      
+      const CodingStatsDashboard: React.FC = () => {
+        return (
+          <div>
+            <h1>syncforge Statistics Dashboard</h1>
+            <p>Statistics will be displayed here.</p>
+          </div>
+        );
+      };
+      
+      export default CodingStatsDashboard;`;
+            await fs.promises.writeFile(dashboardPath, dashboardContent);
+          }
+      
+          const uiDir = path.join(componentsDir, 'ui');
+          await fs.promises.mkdir(uiDir, { recursive: true });
+      
+          // Add to git
+          await this.git.add(statsDir);
+          await this.git.commit('syncforge: Update Statistics data and Website');
+      
+          const currentBranch = (await this.git.branch()).current;
+          await this.git.push('origin', currentBranch);
+      
+          this.outputChannel.appendLine('Syncforge: Statistics data updated and pushed');
         } catch (error) {
-            this.outputChannel.appendLine(`Anthrax: Error updating stats data - ${error}`);
-
-            throw error;
+          this.outputChannel.appendLine(`Syncforge: Error updating stats data - ${error}`);
+          throw error;
         }
-    }
+      }
 
 
-    private async getUpdatedStats(): Promise<AnthraxStats> {
+    private async getUpdatedStats(): Promise<syncforgeStats> {
         const log = await this.git.log();
         const now = new Date();
 
-        const stats: AnthraxStats = {
+        const stats: syncforgeStats = {
             totalTime: 0,
             filesModified: 0,
             totalCommits: log.total,
@@ -1112,14 +1145,14 @@ jobs:
             const log = await this.git.log({ maxCount: 1 });
 
             if (log.latest?.message !== message) {
-                this.outputChannel.appendLine('Anthrax: Warning - Last commit message does not match expected message');
+                this.outputChannel.appendLine('Syncforge: Warning - Last commit message does not match expected message');
                 this.outputChannel.appendLine(`Expected: ${message}`);
                 this.outputChannel.appendLine(`Actual: ${log.latest?.message || 'No commit found'}`);
             } else {
-                this.outputChannel.appendLine('Anthrax: Successfully verified commit was tracked');
+                this.outputChannel.appendLine('Syncforge: Successfully verified commit was tracked');
             }
         } catch (error) {
-            this.outputChannel.appendLine(`Anthrax: Error verifying commit - ${error}`);
+            this.outputChannel.appendLine(`Syncforge: Error verifying commit - ${error}`);
         }
     }
 
@@ -1192,7 +1225,7 @@ jobs:
                 return await this.withProcessLimit(operation);
             } catch (error: any) {
                 if (error.message?.includes('EAGAIN') && attempt < retries) {
-                    this.outputChannel.appendLine(`Anthrax: Git process limit reached, retrying (${attempt}/${retries})...`);
+                    this.outputChannel.appendLine(`Syncforge: Git process limit reached, retrying (${attempt}/${retries})...`);
                     await new Promise((resolve) =>
                         globalThis.setTimeout(resolve, GitService.RETRY_DELAY * attempt)
                     );
@@ -1234,8 +1267,8 @@ jobs:
                 }
 
                 const updatedMessage = message.replace(
-                    /Anthrax Update - [0-9T:.-Z]+/,
-                    `Anthrax Update - ${timestamp.readable}`
+                    /syncforge Update - [0-9T:.-Z]+/,
+                    `syncforge Update - ${timestamp.readable}`
                 );
 
                 this.outputChannel.appendLine(`Current Tracking Directory: ${this.currentTrackingDir}`);
@@ -1256,21 +1289,21 @@ jobs:
                     try {
                         await this.git.fetch('origin', 'main');
                         await this.git.merge(['origin/main']);
-                        this.outputChannel.appendLine('Anthrax: Merged origin/main');
+                        this.outputChannel.appendLine('Syncforge: Merged origin/main');
                     } catch (fetchError: any) {
-                        this.outputChannel.appendLine(`Anthrax: Fetch/merge skipped (likely no remote branch yet) - ${fetchError.message}`);
+                        this.outputChannel.appendLine(`Syncforge: Fetch/merge skipped (likely no remote branch yet) - ${fetchError.message}`);
                     }
 
                     try {
                         await this.git.push(['origin', currentBranch]);
                         this.emitSafe('push', currentBranch);
                     } catch (pushError: any) {
-                        this.outputChannel.appendLine(`Anthrax: Push failed - ${pushError.message}`);
+                        this.outputChannel.appendLine(`Syncforge: Push failed - ${pushError.message}`);
                         if (pushError.message.includes('rejected') || pushError.message.includes('stale info')) {
                             await this.git.fetch('origin', 'main');
                             await this.git.rebase(['origin/main']);
                             await this.git.push(['origin', currentBranch]);
-                            this.outputChannel.appendLine('Anthrax: Rebased and pushed successfully');
+                            this.outputChannel.appendLine('Syncforge: Rebased and pushed successfully');
                         } else {
                             throw pushError;
                         }
@@ -1281,10 +1314,10 @@ jobs:
                 const stats = await this.getUpdatedStats();
                 await this.updateStatsData(stats);
 
-                this.outputChannel.appendLine('Anthrax: Commit and push completed');
+                this.outputChannel.appendLine('Syncforge: Commit and push completed');
 
             } catch (error: any) {
-                this.outputChannel.appendLine(`Anthrax: Git commit failed - ${error.message}`);
+                this.outputChannel.appendLine(`Syncforge: Git commit failed - ${error.message}`);
                 this.emitSafe('error', error);
                 throw error;
             }
@@ -1331,11 +1364,11 @@ jobs:
                 }
 
                 this.outputChannel.appendLine(
-                    'Anthrax: Changes recorded successfully'
+                    'syncforge: Changes recorded successfully'
                 );
             } catch (error: any) {
                 this.outputChannel.appendLine(
-                    `Anthrax: Failed to record changes - ${error.message}`
+                    `syncforge: Failed to record changes - ${error.message}`
                 );
                 throw error;
             }
@@ -1380,11 +1413,11 @@ jobs:
                 await this.git.commit(message);
 
                 this.outputChannel.appendLine(
-                    'Anthrax: Changes committed to tracking repository'
+                    'syncforge: Changes committed to tracking repository'
                 );
             } catch (error: any) {
                 this.outputChannel.appendLine(
-                    `Anthrax: Commit failed - ${error.message}`
+                    `syncforge: Commit failed - ${error.message}`
                 );
                 throw error;
             }

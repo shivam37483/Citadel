@@ -29,7 +29,7 @@ export class SummaryGenerator {
         try {
             const timeStamp = new Date().toISOString();
 
-            let summary = `Anthrax Update - ${timeStamp}\n\n`;
+            let summary = `Syncforge Update - ${timeStamp}\n\n`;
 
 
             // Get Detailed file changes and snippets
@@ -70,14 +70,14 @@ export class SummaryGenerator {
             // Save commit info
             await this.projectContext.addCommit(summary, changedFiles);
 
-            this.channel.appendLine(`Anthrax: Generated commit summary with code snippets`);
+            this.channel.appendLine(`Syncforge: Generated commit summary with code snippets`);
 
             return summary;
 
         } catch (error) {
-            this.channel.appendLine(`Anthrax: Error generating summary: ${error}`);
+            this.channel.appendLine(`Syncforge: Error generating summary: ${error}`);
 
-            return `Anthrax Update - ${new Date().toISOString()}\nUpdated files`;
+            return `syncforge Update - ${new Date().toISOString()}\nUpdated files`;
         }
     }
 

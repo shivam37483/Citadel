@@ -29,15 +29,14 @@ export class Scheduler {
 
         this.timer = setInterval(
             () => this.commitChanges(),
-            // this.commitFrequency * 60 * 1000
 
-            1 * 60 * 1000
+            this.commitFrequency * 60 * 1000
 
         );
 
         // this.channel.appendLine(`Scheduler: Started with a frequency of ${this.commitFrequency} minutes.`);
 
-        this.channel.appendLine(`Scheduler: Started with a frequency of custom minutes.`);
+        this.channel.appendLine(`Scheduler: Started with a frequency of 30 minutes.`);
     }
 
     stop() {
@@ -69,12 +68,12 @@ export class Scheduler {
 
             const commitMessage = await this.summaryGenerator.generateSummary(changedFiles);
 
-            const config = vscode.workspace.getConfiguration('anthrax');
+            const config = vscode.workspace.getConfiguration('syncforge');
             if (config.get<boolean>('confirmBeforeCommit', true)) {
                 const condensedMessage = this.createCondensedMessage(commitMessage);
 
                 const userResponse = await vscode.window.showInformationMessage(
-                    `Anthrax: A commit will be made with the following changes:\n"${condensedMessage}"`,
+                    `Syncforge: A commit will be made with the following changes:\n"${condensedMessage}"`,
                     { modal: true },
                     'Proceed'
                 );
@@ -96,7 +95,7 @@ export class Scheduler {
             this.channel.appendLine(
                 `Scheduler: Failed to commit changes. ${error.message}`
             );
-            vscode.window.showErrorMessage(`DevTrack: Commit failed. ${error.message}`);
+            vscode.window.showErrorMessage(`Syncforge: Commit failed. ${error.message}`);
         } finally {
             this.isCommiting = false;
 
